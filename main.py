@@ -75,9 +75,10 @@ def create_app():
         # Here you would process the input and generate recommendations
         return render_template("user.html", data=response)
     
-    @app.route('/test_result', methods=['POST'])
-    def test_result():
-        return render_template("test_result.html")
+    @app.route('/test_result/<case>', methods=['GET'])
+    def test_result(case):
+        return render_template(f"test_result_{case}.html")
+        
         
     return app
 

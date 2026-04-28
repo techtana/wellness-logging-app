@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container" id="mainApp" style="display: block">
+        <h1>Thank you for sharing how you feel today!</h1>
+        <p>I think this video may lift your spirit.</p>
+        <br/>
+        <iframe width="400" height="300" src="https://www.youtube.com/embed/AW5ySkC2LdQ?si=uIf9_dATIIru5l4M&amp;start=126" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+        
+        <p style="font-size:1.1rem; color:#ccff00; margin-top:1.5rem;">We wish you a wonderful day ahead! 🐾</p>
+    </div>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

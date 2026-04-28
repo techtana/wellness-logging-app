@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('userResponse').value = '';
     });
 
-    document.getElementById('skipButton').addEventListener('click', () => {
+    document.getElementById('doneButton').addEventListener('click', () => {
         if (selectedMood) {
             saveMoodWithActivities(selectedMood, selectedActivities, selectedSleep);
             alert('Your mood has been logged. Thank you!');

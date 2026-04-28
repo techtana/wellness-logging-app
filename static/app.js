@@ -425,11 +425,9 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('userResponse').value = '';
     });
 
-    document.getElementById('skipButton').addEventListener('click', () => {
-        if (selectedMood) {
-            saveMoodWithActivities(selectedMood, selectedActivities, selectedSleep);
-            alert('Your mood has been logged. Thank you!');
-        }
+    document.getElementById('doneButton').addEventListener('click', () => {
+        // Route to /test_result/1
+        window.location.href = '/test_result/2';
     });
 
     document.getElementById('submitResponse').addEventListener('click', () => {
