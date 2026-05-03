@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.pyc
+
+# Virtual environment directory (if you created one outside of .venv/)
+.venv/
+
+# Python build artifacts
+build/
+dist/
+
+# IDE/Editor configuration files
+.vscode/
+.idea/
+
+# Database files
+activity.db
+
+# Git specific internal files
+.git/
+
+# Logs and local data
+*.log
+*.sqlite3
+*.db
+
+# Solution building output/cache
+solution_building/solutions.json
+solution_building/solution_set/
+solution_building/__pycache__/
+
+# HTML templates that are generated/specific test results (Uncomment if they are test outputs)
+# templates/test_result_*.html
+
+# OS generated files
+.DS_Store
