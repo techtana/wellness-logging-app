@@ -23,14 +23,7 @@ activity.db
 *.log
 *.sqlite3
 *.db
-
-# Solution building output/cache
-solution_building/solutions.json
-solution_building/solution_set/
-solution_building/__pycache__/
-
-# HTML templates that are generated/specific test results (Uncomment if they are test outputs)
-# templates/test_result_*.html
+**/__pycache__/
 
 # OS generated files
 .DS_Store
