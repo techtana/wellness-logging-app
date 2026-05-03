@@ -1,10 +1,25 @@
-# Dependencies needed for the modular structure
-flask
-sqlalchemy
-requests
+# Core Dependencies
+flask==3.0.0
+python-dotenv==1.0.0
 
-# NLP/ML libraries from SDP 2.2
-spacy
-pandas
-scikit-learn
-# ... existing code ...
+# NLP & ML Libraries (from SDP 2.2)
+spacy==3.7.2
+nltk==3.8.1
+pandas==2.1.4
+scikit-learn==1.3.2
+
+# Data Processing
+numpy==1.24.3
+
+# Utilities
+requests==2.31.0
+sqlalchemy==2.0.23
+
+# Development & Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+black==23.12.1
+flake8==6.1.0
+
+# Optional: FHIR/HL7 Support
+# fhir-py==1.5.1  # Uncomment for HL7/FHIR support
