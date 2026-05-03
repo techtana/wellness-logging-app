@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clinical Intelligence System</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <div class="layout">
+
+    <!-- Sidebar: Transcript Builder -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo">
+          <span class="logo-mark"></span>
+          <div>
+            <div class="logo-name">ClinicalAI</div>
+            <div class="logo-sub">Session Analyzer</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-body">
+        <div class="field">
+          <label for="sessionId">Session ID <span class="optional">optional</span></label>
+          <input id="sessionId" type="text" placeholder="e.g. session_001" autocomplete="off">
+        </div>
+
+        <div class="turns-header">
+          <span class="turns-label">Transcript</span>
+          <div class="turns-add">
+            <button class="chip therapist" onclick="addTurn('therapist')">+ Therapist</button>
+            <button class="chip client" onclick="addTurn('client')">+ Client</button>
+          </div>
+        </div>
+
+        <div id="turns" class="turns"></div>
+
+        <div class="empty-turns" id="emptyTurns">
+          <p>Add turns above to build the transcript.</p>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
+          <span id="analyzeBtnText">Analyze Session</span>
+          <svg id="analyzeSpinner" class="spinner hidden" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-linecap="round"/>
+          </svg>
+        </button>
+        <button class="btn-clear" onclick="clearAll()">Clear</button>
+      </div>
+    </aside>
+
+    <!-- Main: Results -->
+    <main class="main">
+
+      <!-- Empty state -->
+      <div class="splash" id="splash">
+        <div class="splash-icon">
+          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="8" y="16" width="48" height="36" rx="4" stroke="currentColor" stroke-width="2.5"/>
+            <path d="M20 28h24M20 36h16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="48" cy="12" r="8" fill="currentColor" opacity="0.15"/>
+            <path d="M45 12h6M48 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h2 class="splash-title">Ready to analyze</h2>
+        <p class="splash-desc">Build a session transcript using the panel on the left, then click <strong>Analyze Session</strong> to generate clinical insights.</p>
+        <button class="btn-demo" onclick="loadDemo()">Load demo transcript</button>
+      </div>
+
+      <!-- Error state -->
+      <div class="error-banner hidden" id="errorBanner">
+        <span id="errorMsg"></span>
+        <button onclick="dismissError()">&#x2715;</button>
+      </div>
+
+      <!-- Results -->
+      <div class="results hidden" id="results">
+
+        <!-- Tab bar -->
+        <div class="tabs">
+          <button class="tab active" data-tab="summary"  onclick="switchTab(this)">Summary</button>
+          <button class="tab"        data-tab="emotions" onclick="switchTab(this)">Emotions</button>
+          <button class="tab"        data-tab="themes"   onclick="switchTab(this)">Themes</button>
+          <button class="tab"        data-tab="dynamics" onclick="switchTab(this)">Dynamics</button>
+          <button class="tab"        data-tab="plan"     onclick="switchTab(this)">Clinical Plan</button>
+        </div>
+
+        <!-- Summary tab -->
+        <div class="tab-panel active" id="tab-summary">
+          <div class="stat-row" id="statRow"></div>
+          <div class="card" id="toneCard"></div>
+          <div class="card" id="takeawaysCard"></div>
+        </div>
+
+        <!-- Emotions tab -->
+        <div class="tab-panel" id="tab-emotions">
+          <div class="card" id="emotionSummaryCard"></div>
+          <div class="card" id="emotionTrajectoryCard"></div>
+          <div class="card" id="emotionShiftsCard"></div>
+        </div>
+
+        <!-- Themes tab -->
+        <div class="tab-panel" id="tab-themes">
+          <div class="card" id="themesCard"></div>
+          <div class="card" id="distortionsCard"></div>
+        </div>
+
+        <!-- Dynamics tab -->
+        <div class="tab-panel" id="tab-dynamics">
+          <div class="card" id="allianceCard"></div>
+          <div class="card" id="speakerCard"></div>
+          <div class="card" id="eventsCard"></div>
+        </div>
+
+        <!-- Clinical plan tab -->
+        <div class="tab-panel" id="tab-plan">
+          <div class="card" id="recommendCard"></div>
+          <div class="card" id="interventionsCard"></div>
+          <div class="card" id="journalingCard"></div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

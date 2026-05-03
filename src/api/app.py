@@ -1,19 +1,25 @@
 """API Layer - Flask application for clinical intelligence system"""
-from flask import Flask, request, jsonify
+import os
+from flask import Flask, request, jsonify, render_template
 from datetime import datetime
 import logging
 
 from src.main import TherapeuticCommunicationAnalyzer
 from src.config import config
 
-# Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def create_app():
     """Factory function to create Flask application"""
-    app = Flask(__name__)
+    app = Flask(
+        __name__,
+        template_folder=os.path.join(_ROOT, 'templates'),
+        static_folder=os.path.join(_ROOT, 'static'),
+    )
     app.config.update(
         DEBUG=config.DEBUG,
         TESTING=config.TESTING,
@@ -22,6 +28,10 @@ def create_app():
 
     # Initialize analyzer
     analyzer = TherapeuticCommunicationAnalyzer()
+
+    @app.route('/', methods=['GET'])
+    def index():
+        return render_template('index.html')
 
     # Health check endpoint
     @app.route('/health', methods=['GET'])
