@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r \"NotImplementedError\\\\|TODO\\\\|FIXME\\\\|XXX\\\\|pass$\" src/ --include=\"*.py\")",
+      "Bash(.venv\\\\Scripts\\\\python.exe -m pytest tests/ -v)"
+    ]
+  }
+}
