@@ -1,3 +1,10 @@
-Flask
+# Dependencies needed for the modular structure
+flask
 sqlalchemy
 requests
+
+# NLP/ML libraries from SDP 2.2
+spacy
+pandas
+scikit-learn
+# ... existing code ...

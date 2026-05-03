@@ -1,0 +1,1 @@
+# Inference Layer: Generates high-level, structured insights (PRD Goal)
