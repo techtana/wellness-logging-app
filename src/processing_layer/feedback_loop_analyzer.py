@@ -23,13 +23,16 @@ class FeedbackLoopAnalyzer:
     def analyze_feedback_loops(self, transcript: List[Dict]) -> Dict:
         """
         Analyze the presence of positive or negative feedback loops in the conversation.
-        
+
         Args:
         - transcript (List[Dict]): Transcription data with speaker and text information
-        
+
         Returns:
         - A dictionary containing the analysis results
         """
+        # Reset state so the same instance can be reused across sessions
+        self.conversation_state = 'positive'
+
         if not transcript:
             return {}
 

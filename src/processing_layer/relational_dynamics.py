@@ -4,6 +4,7 @@ Analyzes therapeutic alliance, communication patterns, and inter-speaker dynamic
 """
 
 import re
+import dataclasses
 from datetime import datetime
 from typing import Dict, List, Tuple
 from dataclasses import dataclass, field
@@ -143,8 +144,8 @@ class RelationalDynamicsMapper:
         
         return {
             'speaker_profiles': speaker_styles,
-            'relational_events': events,
-            'therapeutic_alliance': alliance_assessment,
+            'relational_events': [dataclasses.asdict(e) for e in events],
+            'therapeutic_alliance': dataclasses.asdict(alliance_assessment),
             'communication_breakdowns': breakdowns,
             'dominant_dynamic': self._determine_dominant_dynamic(transcript)
         }
@@ -306,8 +307,8 @@ class RelationalDynamicsMapper:
         
         if not event_counts:
             return "Neutral/Standard"
-        
-        return max(event_counts, key=event_counts.get).value
+
+        return max(event_counts, key=event_counts.get)
 
 class SpeakerInteractionAnalyzer:
     """Analyzes speaker interactions and turn-taking patterns"""

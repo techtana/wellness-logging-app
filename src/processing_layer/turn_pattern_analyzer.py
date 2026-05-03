@@ -15,13 +15,17 @@ class TurnPatternAnalyzer:
     def analyze_turns(self, transcript: List[Dict]) -> Dict:
         """
         Analyze the timing and pattern of speaker turns.
-        
+
         Args:
         - transcript (List[Dict]): Transcription data with timestamps and speaker information
-        
+
         Returns:
         - A dictionary containing the analysis of turn patterns
         """
+        # Reset state so the same instance can be reused across sessions
+        self.patterns = {'pauses': 0, 'overlaps': 0, 'silence_gaps': 0, 'rapid_responses': 0}
+        self.interaction_timing = []
+
         if not transcript:
             return self._empty_results()
 

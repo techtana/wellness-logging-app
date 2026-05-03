@@ -105,15 +105,15 @@ def test_batch_analysis():
     sessions = [
         {
             'transcript': [
-                {'speaker': 'therapist', 'text': 'Hello'},
-                {'speaker': 'client', 'text': 'Hi, I am anxious'}
+                {'speaker': 'therapist', 'text': 'Hello, how have you been feeling since our last session?'},
+                {'speaker': 'client', 'text': 'I have been feeling very anxious and worried about many things lately.'}
             ],
             'session_id': 'batch_001'
         },
         {
             'transcript': [
-                {'speaker': 'therapist', 'text': 'How are you today?'},
-                {'speaker': 'client', 'text': 'I am feeling sad'}
+                {'speaker': 'therapist', 'text': 'How are you doing today? Tell me what is on your mind.'},
+                {'speaker': 'client', 'text': 'I am feeling quite sad and depressed. Nothing seems to be going well.'}
             ],
             'session_id': 'batch_002'
         }
