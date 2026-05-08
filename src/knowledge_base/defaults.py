@@ -19,7 +19,12 @@ Guidelines:
 - A single mention with neutral hedging = low intensity (10-30)
 - Strong language + multiple mentions = high intensity (60-90)
 - Track how emotions evolve — note both escalations and de-escalations
-- Consider the therapeutic context: even positive emotions can carry clinical weight"""
+- Consider the therapeutic context: even positive emotions can carry clinical weight
+
+In the summary, include an "explanation" field with 2-3 sentences that:
+- Interpret the clinical significance of the overall emotional pattern
+- Note what the trajectory suggests about the client's current psychological state
+- Highlight any patterns the therapist should pay particular attention to in follow-up"""
     },
     {
         "id": "themes",
@@ -42,7 +47,12 @@ COGNITIVE DISTORTIONS to detect (use exact names):
 - Should Statements: rigid "should/must/ought" rules generating guilt or frustration
 - Control Issues: needing to control everything, or feeling completely powerless
 
-Severity: Mild (1-2 mentions, low distress), Moderate (recurring, moderate distress), Severe (pervasive, high distress/impairment)"""
+Severity: Mild (1-2 mentions, low distress), Moderate (recurring, moderate distress), Severe (pervasive, high distress/impairment)
+
+Include a "clinical_significance" field that:
+- Explains what the identified theme and distortion patterns mean clinically
+- Describes how these patterns may be maintaining the client's presenting difficulties
+- Suggests initial therapeutic approaches most likely to be effective (e.g., "Socratic questioning for Overgeneralization", "behavioral experiments for All-or-Nothing Thinking")"""
     },
     {
         "id": "dynamics",
@@ -68,7 +78,12 @@ RELATIONAL EVENTS:
 
 COMMUNICATION BREAKDOWNS: talking past each other, misunderstandings, abrupt subject changes under stress
 
-Assess dominance of therapist vs. client in the conversational dynamic."""
+Assess dominance of therapist vs. client in the conversational dynamic.
+
+In the therapeutic_alliance object, include an "interpretation" field that:
+- Explains what the current alliance quality means for the therapeutic work
+- Identifies specific moments in the session that strengthened or weakened it
+- Provides 1-2 concrete suggestions the therapist can use in the next session to strengthen the alliance"""
     },
     {
         "id": "clinical_report",
@@ -86,10 +101,13 @@ Generate comprehensive, clinician-ready reports that:
 - Only make claims directly supported by transcript evidence
 
 REPORT QUALITY STANDARDS:
-- Executive summary: clear narrative arc of the session, 3 specific takeaways, one clinical priority
-- Interventions: concrete named techniques (e.g., "Socratic questioning", "behavioral activation", "EMDR")
-- Journaling prompts: open-ended, insight-oriented, personalized to specific session themes
+- Executive summary: rich narrative arc — describe how the session unfolded, what shifted, and what it means clinically. Be specific about moments in the transcript that support your observations.
+- overall_tone_trajectory: write 3-5 sentences explaining the emotional and relational arc of the session, including what the client's manner of speaking (not just content) suggests about their state.
+- key_takeaways: each takeaway should be a specific, evidence-grounded insight — not generic observations.
+- Interventions: concrete named techniques (e.g., "Socratic questioning", "behavioral activation", "EMDR", "chair work")
+- Journaling prompts: open-ended, insight-oriented, personalized to specific session themes — these should feel like they came from a thoughtful therapist, not a template
 - Red flags: flag ONLY actual clinical concerns — suicidality, self-harm, abuse, psychosis, substance crisis
-- Next session: specific and actionable focus, not generic advice"""
+- Next session: specific and actionable focus, directly tied to what emerged in this session
+- recommendations.monitoring_points: describe what behavioral or verbal signals the therapist should watch for in the next session as indicators of progress or regression"""
     }
 ]

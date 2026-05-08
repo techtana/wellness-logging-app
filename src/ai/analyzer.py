@@ -1,6 +1,6 @@
 """AI-based transcript analysis using knowledge base instructions."""
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,11 +19,16 @@ class AIAnalyzer:
         self.provider = provider
         self.kb = kb_manager
 
-    def analyze_emotions(self, transcript: List[Dict]) -> Dict:
-        inst = self.kb.get_instruction("sentiment")
-        if not inst:
-            return {}
-        system = inst["prompt"] + _JSON_INSTRUCTION
+    def analyze_emotions(self, transcript: List[Dict],
+                         custom_instruction: Optional[str] = None) -> Dict:
+        if custom_instruction:
+            system = custom_instruction + _JSON_INSTRUCTION
+        else:
+            inst = self.kb.get_instruction("sentiment")
+            if not inst:
+                return {}
+            system = inst["prompt"] + _JSON_INSTRUCTION
+
         user = f"""Analyze this therapy session for emotional content.
 
 TRANSCRIPT:
@@ -39,7 +44,8 @@ Return this exact JSON structure:
     "average_intensity": 45.0,
     "emotional_stability": "Stable|Moderately Stable|Unstable|Volatile",
     "emotion_distribution": {{"Anxious": 3, "Hopeful": 1}},
-    "key_shifts": []
+    "key_shifts": [],
+    "explanation": "2-3 sentence clinical interpretation of the overall emotional pattern and what it suggests about the client's psychological state"
   }},
   "significant_shifts": [
     {{"from_emotion": "Anxious", "to_emotion": "Hopeful", "magnitude": 30.0, "to_time": "turn 6"}}
@@ -51,12 +57,17 @@ Return this exact JSON structure:
             logger.error(f"AI emotion analysis: {e}")
             return {}
 
-    def analyze_themes(self, transcript: List[Dict]) -> Dict:
-        inst = self.kb.get_instruction("themes")
-        if not inst:
-            return {}
+    def analyze_themes(self, transcript: List[Dict],
+                       custom_instruction: Optional[str] = None) -> Dict:
+        if custom_instruction:
+            system = custom_instruction + _JSON_INSTRUCTION
+        else:
+            inst = self.kb.get_instruction("themes")
+            if not inst:
+                return {}
+            system = inst["prompt"] + _JSON_INSTRUCTION
+
         client_turns = [t for t in transcript if "client" in t.get("speaker", "").lower()]
-        system = inst["prompt"] + _JSON_INSTRUCTION
         user = f"""Analyze this session for themes and cognitive distortions.
 
 FULL TRANSCRIPT:
@@ -75,7 +86,8 @@ Return this exact JSON structure:
     {{"distortion_type": "Catastrophizing|Overgeneralization|Mind Reading|Emotional Reasoning|All-or-Nothing Thinking|Magnification/Minimization|Labeling|Personalization|Should Statements|Control Issues",
       "severity": "Mild|Moderate|Severe", "example": "exact quote", "turn": 3}}
   ],
-  "distortion_summary": {{}}
+  "distortion_summary": {{}},
+  "clinical_significance": "2-3 sentences on what the identified theme and distortion patterns mean clinically, how they may be maintaining the client's difficulties, and suggested initial therapeutic approaches"
 }}"""
         try:
             return self.provider.complete_json(system, user) or {}
@@ -83,11 +95,16 @@ Return this exact JSON structure:
             logger.error(f"AI theme analysis: {e}")
             return {}
 
-    def analyze_dynamics(self, transcript: List[Dict]) -> Dict:
-        inst = self.kb.get_instruction("dynamics")
-        if not inst:
-            return {}
-        system = inst["prompt"] + _JSON_INSTRUCTION
+    def analyze_dynamics(self, transcript: List[Dict],
+                         custom_instruction: Optional[str] = None) -> Dict:
+        if custom_instruction:
+            system = custom_instruction + _JSON_INSTRUCTION
+        else:
+            inst = self.kb.get_instruction("dynamics")
+            if not inst:
+                return {}
+            system = inst["prompt"] + _JSON_INSTRUCTION
+
         user = f"""Analyze the relational dynamics in this therapy session.
 
 TRANSCRIPT:
@@ -105,7 +122,8 @@ Return this exact JSON structure:
   "therapeutic_alliance": {{
     "timestamp": "session",
     "rating": "Strong|Moderate|Weak|Very Weak",
-    "components": {{"agreement": 70, "emotional_bond": 65, "collaboration": 75}}
+    "components": {{"agreement": 70, "emotional_bond": 65, "collaboration": 75}},
+    "interpretation": "2-3 sentences on what the current alliance quality means for the therapeutic work, what moments strengthened or weakened it, and 1-2 concrete suggestions for the therapist to strengthen the alliance next session"
   }},
   "communication_breakdowns": [],
   "dominant_dynamic": "collaborative exploration"
@@ -118,18 +136,22 @@ Return this exact JSON structure:
 
     def generate_report_sections(
         self, transcript: List[Dict], session_id: str, patient_id: str,
-        sentiment: Dict, thematic: Dict, relational: Dict
+        sentiment: Dict, thematic: Dict, relational: Dict,
+        custom_instruction: Optional[str] = None
     ) -> Dict:
-        inst = self.kb.get_instruction("clinical_report")
-        if not inst:
-            return {}
+        if custom_instruction:
+            system = custom_instruction + _JSON_INSTRUCTION
+        else:
+            inst = self.kb.get_instruction("clinical_report")
+            if not inst:
+                return {}
+            system = inst["prompt"] + _JSON_INSTRUCTION
 
         emotion_summary = sentiment.get("summary", {})
         themes_list = [t.get("theme", "") for t in thematic.get("dominant_themes", [])[:3]]
         distortions = [d.get("distortion_type", "") for d in thematic.get("cognitive_distortions", [])[:3]]
         alliance = relational.get("therapeutic_alliance", {}).get("rating", "Unknown")
 
-        system = inst["prompt"] + _JSON_INSTRUCTION
         user = f"""Generate a comprehensive clinical report for session {session_id}.
 
 TRANSCRIPT:
@@ -144,8 +166,8 @@ ANALYSIS CONTEXT:
 Return this exact JSON structure:
 {{
   "executive_summary": {{
-    "overall_tone_trajectory": "narrative describing how session tone evolved",
-    "key_takeaways": ["specific takeaway 1", "specific takeaway 2", "specific takeaway 3"],
+    "overall_tone_trajectory": "3-5 sentence narrative describing how the session tone evolved, including what the client's manner of speaking suggests about their state",
+    "key_takeaways": ["specific evidence-grounded takeaway 1", "specific takeaway 2", "specific takeaway 3"],
     "priority_focus_area": "most important clinical focus",
     "session_duration": "standard"
   }},
@@ -164,7 +186,7 @@ Return this exact JSON structure:
   "clinical_hypothesis": {{
     "potential_interventions": ["named technique 1", "named technique 2"],
     "therapeutic_approaches": ["CBT", "Motivational Interviewing"],
-    "journaling_prompts": ["open-ended prompt 1", "open-ended prompt 2", "open-ended prompt 3"],
+    "journaling_prompts": ["open-ended personalized prompt 1", "open-ended personalized prompt 2", "open-ended personalized prompt 3"],
     "follow_up_focus": "specific next session focus"
   }},
   "relational_dynamics": {{
@@ -176,8 +198,8 @@ Return this exact JSON structure:
   }},
   "recommendations": {{
     "immediate_actions": ["actionable item 1", "actionable item 2"],
-    "next_session_focus": "specific and actionable focus area",
-    "monitoring_points": ["what to watch for 1", "what to watch for 2"],
+    "next_session_focus": "specific and actionable focus area directly tied to what emerged in this session",
+    "monitoring_points": ["behavioral or verbal signal to watch for 1", "signal to watch for 2"],
     "red_flags": []
   }}
 }}"""

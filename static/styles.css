@@ -95,6 +95,13 @@ body {
   transition: border-color .15s;
 }
 .field input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,111,212,.12); }
+.field select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 7px; font-size: 13px; font-family: var(--font);
+  color: var(--text); background: var(--surface); outline: none;
+  cursor: pointer; transition: border-color .15s;
+}
+.field select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,111,212,.12); }
 
 /* ── Turns header ─────────────────────────────────────── */
 .turns-header {
@@ -1188,4 +1195,264 @@ body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 .arc-label {
   font-size: 10px; font-weight: 700; text-transform: uppercase;
   letter-spacing: .05em; margin-bottom: 3px; opacity: .6;
+}
+
+/* ── Client History Screen ────────────────────────────── */
+.history-view {
+  display: flex; flex-direction: column; height: 100%;
+  padding: 24px 20px; overflow: hidden;
+}
+.history-top {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+  flex-shrink: 0;
+}
+.history-top h2 {
+  flex: 1; font-size: 18px; font-weight: 700; color: var(--client);
+}
+.btn-history-back {
+  background: none; border: 1px solid var(--border); border-radius: 8px;
+  padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--text-muted);
+  cursor: pointer; transition: all .15s;
+}
+.btn-history-back:hover { border-color: var(--client); color: var(--client); }
+
+.history-list {
+  flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px;
+}
+.history-list:empty::after {
+  content: 'No past sessions yet.';
+  display: block; text-align: center; color: var(--text-muted);
+  font-size: 14px; padding: 40px 0;
+}
+
+/* ── History Session Card ──────────────────────────────── */
+.hist-session {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.hist-session-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px; cursor: pointer;
+  transition: background .15s;
+}
+.hist-session-header:hover { background: rgba(13,148,136,.04); }
+
+.hist-session-meta { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.hist-session-id { font-size: 11px; font-weight: 700; color: var(--client); font-family: monospace; }
+.hist-session-date { font-size: 11px; color: var(--text-muted); }
+
+.hist-badges { display: flex; gap: 5px; align-items: center; }
+.hist-badge {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  padding: 2px 7px; border-radius: 99px;
+}
+.hist-badge-complete  { background: rgba(16,185,129,.12); color: #059669; }
+.hist-badge-progress  { background: rgba(245,158,11,.12);  color: #d97706; }
+.hist-badge-analyzed  { background: rgba(59,111,212,.12);  color: var(--primary); }
+
+.hist-session-actions {
+  display: flex; gap: 6px; align-items: center;
+}
+.btn-hist-action {
+  font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: none; color: var(--primary);
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+  text-decoration: none; display: inline-block;
+}
+.btn-hist-action:hover { background: var(--tag-bg); border-color: var(--primary); }
+.btn-hist-delete {
+  font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 6px;
+  border: 1px solid transparent; background: none; color: var(--text-muted);
+  cursor: pointer; transition: all .15s;
+}
+.btn-hist-delete:hover { color: var(--danger); border-color: var(--danger); }
+
+/* ── History Session Expanded Body ──────────────────────── */
+.hist-session-body {
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.hist-session-body.hidden { display: none; }
+
+.hist-turn {
+  padding: 8px 10px; border-radius: 8px; font-size: 13px; line-height: 1.5;
+  border-left: 3px solid transparent;
+}
+.hist-turn-therapist {
+  background: rgba(59,111,212,.05); border-left-color: var(--primary);
+}
+.hist-turn-client {
+  background: rgba(13,148,136,.05); border-left-color: var(--client);
+}
+.hist-turn-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; margin-bottom: 3px; opacity: .55;
+}
+.hist-turn-text { color: var(--text); }
+
+.hist-audio {
+  display: flex; gap: 6px; margin-top: 5px; flex-wrap: wrap; align-items: center;
+}
+.btn-hist-play {
+  font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 6px;
+  border: 1px solid var(--client); background: rgba(13,148,136,.08);
+  color: var(--client); cursor: pointer; transition: all .15s;
+}
+.btn-hist-play:hover { background: rgba(13,148,136,.18); }
+
+.hist-bridge {
+  margin-top: 4px; padding: 10px 12px; border-radius: 8px;
+  background: rgba(59,111,212,.05); border: 1px dashed rgba(59,111,212,.25);
+  font-size: 13px; line-height: 1.5;
+}
+.hist-bridge-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .05em; color: var(--primary); margin-bottom: 4px; opacity: .7;
+}
+
+/* ── History Link Button (welcome card) ─────────────────── */
+.btn-history-link {
+  background: none; border: none; padding: 0;
+  font-size: 13px; font-weight: 600; color: var(--client);
+  cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+  transition: opacity .15s;
+}
+.btn-history-link:hover { opacity: .75; }
+
+/* ── Manage link in therapist sidebar ───────────────────── */
+.manage-link {
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  cursor: pointer; text-decoration: none; opacity: .8;
+  transition: opacity .15s;
+}
+.manage-link:hover { opacity: 1; }
+
+/* ══════════════════════════════════════════════════════════
+   MANAGE VIEW
+   ══════════════════════════════════════════════════════════ */
+#manageView { overflow: hidden; }
+
+.manage-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  height: 100%;
+  overflow: hidden;
+}
+
+.manage-nav {
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 10px;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.manage-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 8px; border: none;
+  background: none; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); cursor: pointer; text-align: left;
+  transition: all .15s;
+}
+.manage-nav-item:hover { background: var(--bg); color: var(--text); }
+.manage-nav-item.active { background: rgba(59,111,212,.1); color: var(--primary); }
+
+.manage-body { overflow-y: auto; position: relative; }
+
+.manage-panel { display: none; padding: 28px 32px; flex-direction: column; gap: 16px; }
+.manage-panel.active { display: flex; }
+
+.manage-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.manage-panel-head h2 { font-size: 18px; font-weight: 700; color: var(--text); }
+
+.manage-panel-content { display: flex; flex-direction: column; gap: 8px; }
+
+/* Prompt list in manage panel — make it scrollable */
+#manage-panel-prompts .prompt-list {
+  max-height: calc(100vh - 200px); overflow-y: auto;
+}
+
+/* KB layout fills manage panel */
+#manage-panel-kb .kb-layout {
+  min-height: calc(100vh - 160px);
+}
+
+/* ── Section KB bar (per-tab re-analysis) ───────────────── */
+.section-kb-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; background: #f8fafc;
+  border: 1px solid var(--border); border-radius: 8px;
+  margin-bottom: 4px;
+}
+.section-kb-label {
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-muted); flex-shrink: 0;
+}
+.section-kb-select {
+  flex: 1; padding: 5px 8px; border: 1px solid var(--border);
+  border-radius: 6px; font-size: 12px; font-family: var(--font);
+  color: var(--text); background: var(--surface); outline: none;
+  min-width: 0; cursor: pointer;
+}
+.section-kb-select:focus { border-color: var(--primary); }
+.btn-reanalyze {
+  padding: 5px 12px; background: var(--primary); color: #fff;
+  border: none; border-radius: 6px; font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap; flex-shrink: 0;
+  transition: background .15s;
+}
+.btn-reanalyze:hover { background: var(--primary-dk); }
+.btn-reanalyze:disabled { opacity: .55; cursor: not-allowed; }
+
+/* ── KB file attachments ────────────────────────────────── */
+.kb-files-section {
+  margin-top: 4px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.kb-files-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.btn-attach-file {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 12px; background: none;
+  border: 1.5px dashed var(--primary); border-radius: 6px;
+  font-size: 12px; font-weight: 600; color: var(--primary);
+  cursor: pointer; transition: all .15s;
+}
+.btn-attach-file:hover { background: rgba(59,111,212,.06); }
+
+.kb-file-list {
+  display: flex; flex-direction: column; gap: 5px;
+  min-height: 28px;
+}
+.kb-file-chip {
+  display: flex; align-items: center; gap: 7px;
+  padding: 5px 10px; border-radius: 7px;
+  background: #f1f5f9; border: 1px solid var(--border);
+  font-size: 12px;
+}
+.kb-file-icon { flex-shrink: 0; }
+.kb-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.kb-file-delete {
+  background: none; border: none; cursor: pointer;
+  color: var(--text-muted); font-size: 13px; padding: 1px 4px;
+  border-radius: 4px; flex-shrink: 0; line-height: 1;
+  transition: color .15s;
+}
+.kb-file-delete:hover { color: var(--danger); }
+
+/* ── Analysis explanation blocks ────────────────────────── */
+.analysis-explanation {
+  font-size: 13px; line-height: 1.7; color: var(--text);
+  background: rgba(59,111,212,.04);
+  border-left: 3px solid var(--primary);
+  border-radius: 0 7px 7px 0;
+  padding: 10px 14px;
 }

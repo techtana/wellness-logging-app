@@ -1,4 +1,5 @@
 """Flask application — Clinical Intelligence System API"""
+import io
 import json
 import os
 import tempfile
@@ -6,7 +7,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from flask import Flask, request, jsonify, render_template, Response, stream_with_context
+from flask import Flask, request, jsonify, render_template, Response, stream_with_context, send_file
 
 from src.main import TherapeuticCommunicationAnalyzer
 from src.config import config
@@ -15,6 +16,7 @@ from src.ai.analyzer import AIAnalyzer
 from src.knowledge_base.manager import KnowledgeBaseManager
 from src.transcription.settings import TranscriptionSettings
 from src.prompts.manager import PromptManager
+from src.sessions.manager import SessionManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -22,6 +24,29 @@ logger = logging.getLogger(__name__)
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 _ALLOWED_AUDIO = {'.mp3', '.wav', '.m4a', '.ogg', '.webm', '.flac', '.mp4', '.aac'}
+_ALLOWED_KB_FILES = {'.txt', '.pdf', '.md'}
+
+
+def _extract_text(file_obj, file_type: str) -> str:
+    """Extract plain text from an uploaded file (PDF or text)."""
+    if file_type == 'pdf':
+        data = file_obj.read()
+        try:
+            import fitz  # PyMuPDF
+            doc = fitz.open(stream=data, filetype="pdf")
+            return "\n".join(page.get_text() for page in doc)
+        except ImportError:
+            pass
+        try:
+            from pdfminer.high_level import extract_text_to_fp
+            out = io.StringIO()
+            extract_text_to_fp(io.BytesIO(data), out)
+            return out.getvalue()
+        except ImportError:
+            pass
+        return data.decode('utf-8', errors='replace')
+    else:
+        return file_obj.read().decode('utf-8', errors='replace')
 
 
 def _build_analyzer(ai_settings: AISettings, kb_manager: KnowledgeBaseManager) -> TherapeuticCommunicationAnalyzer:
@@ -43,6 +68,7 @@ def create_app():
     transcription_settings = TranscriptionSettings()
     kb_manager = KnowledgeBaseManager()
     prompt_manager = PromptManager()
+    session_manager = SessionManager()
     analyzer_ref = {'instance': _build_analyzer(ai_settings, kb_manager)}
 
     def get_analyzer():
@@ -83,6 +109,55 @@ def create_app():
         except Exception as e:
             logger.error(f"Analysis error: {e}")
             return jsonify({'error': 'Analysis failed', 'message': str(e)}), 500
+
+    @app.route('/api/v1/analyze/section', methods=['POST'])
+    def analyze_section():
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data'}), 400
+        section = data.get('section')
+        transcript = data.get('transcript')
+        if not section or not transcript:
+            return jsonify({'error': 'Required: section, transcript'}), 400
+
+        kb_id = data.get('kb_id')
+        custom_instruction = None
+        if kb_id:
+            inst = kb_manager.get_by_id_with_files(kb_id)
+            if inst:
+                custom_instruction = inst['prompt']
+
+        provider = ai_settings.create_provider()
+        if not provider:
+            return jsonify({'error': 'No AI provider configured. Set one in Settings.'}), 503
+
+        from src.ai.analyzer import AIAnalyzer as _AIAnalyzer
+        ai = _AIAnalyzer(provider, kb_manager)
+
+        try:
+            if section == 'sentiment':
+                result = ai.analyze_emotions(transcript, custom_instruction=custom_instruction)
+            elif section == 'themes':
+                result = ai.analyze_themes(transcript, custom_instruction=custom_instruction)
+            elif section == 'dynamics':
+                result = ai.analyze_dynamics(transcript, custom_instruction=custom_instruction)
+            elif section == 'clinical_report':
+                session_id = data.get('session_id', 'unknown')
+                patient_id = data.get('patient_id', 'anonymous')
+                sentiment = data.get('sentiment', {})
+                thematic = data.get('thematic', {})
+                relational = data.get('relational', {})
+                result = ai.generate_report_sections(
+                    transcript, session_id, patient_id,
+                    sentiment, thematic, relational,
+                    custom_instruction=custom_instruction
+                )
+            else:
+                return jsonify({'error': f'Unknown section: {section}'}), 400
+            return jsonify({'section': section, 'result': result}), 200
+        except Exception as e:
+            logger.error(f"Section analysis error: {e}")
+            return jsonify({'error': str(e)}), 500
 
     @app.route('/api/v1/analyze/batch', methods=['POST'])
     def analyze_batch():
@@ -231,6 +306,41 @@ def create_app():
         kb_manager.reset()
         return jsonify({'message': 'Knowledge base reset to defaults', 'instructions': kb_manager.list()})
 
+    @app.route('/api/v1/kb/instructions/<inst_id>/files', methods=['GET'])
+    def list_kb_files(inst_id):
+        inst = kb_manager.get_by_id(inst_id)
+        if not inst:
+            return jsonify({'error': 'Not found'}), 404
+        return jsonify({'files': kb_manager.list_files(inst_id)})
+
+    @app.route('/api/v1/kb/instructions/<inst_id>/files', methods=['POST'])
+    def upload_kb_file(inst_id):
+        inst = kb_manager.get_by_id(inst_id)
+        if not inst:
+            return jsonify({'error': 'Not found'}), 404
+        if 'file' in request.files:
+            f = request.files['file']
+            filename = f.filename or 'file.txt'
+            suffix = Path(filename).suffix.lower()
+            if suffix not in _ALLOWED_KB_FILES:
+                return jsonify({'error': f'Unsupported file type. Allowed: {", ".join(_ALLOWED_KB_FILES)}'}), 400
+            file_type = 'pdf' if suffix == '.pdf' else 'text'
+            content = _extract_text(f, file_type)
+        else:
+            body = request.get_json() or {}
+            filename = body.get('filename', 'content.txt')
+            content = body.get('content_text', '')
+            file_type = body.get('file_type', 'text')
+        if not content or not content.strip():
+            return jsonify({'error': 'File is empty or could not be read'}), 400
+        ok = kb_manager.save_file(inst_id, filename, content, file_type)
+        return jsonify({'ok': ok, 'filename': filename})
+
+    @app.route('/api/v1/kb/instructions/<inst_id>/files/<path:filename>', methods=['DELETE'])
+    def delete_kb_file(inst_id, filename):
+        ok = kb_manager.delete_file(inst_id, filename)
+        return jsonify({'deleted': ok}) if ok else (jsonify({'error': 'Not found'}), 404)
+
     # ── Prompts ─────────────────────────────────────────────
     @app.route('/api/v1/prompts/session', methods=['GET'])
     def get_session_prompts():
@@ -328,6 +438,98 @@ def create_app():
         except Exception as e:
             logger.error(f"Bridge note error: {e}")
             return jsonify({'bridge_note': 'Thank you for taking the time to reflect today. Each session is a step forward.'})
+
+    # ── Sessions ────────────────────────────────────────────
+    @app.route('/api/v1/sessions', methods=['POST'])
+    def create_session():
+        data = request.get_json() or {}
+        session_id = data.get('session_id') or f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        existing = session_manager.get(session_id)
+        if existing:
+            return jsonify(existing)
+        meta = session_manager.create(session_id)
+        return jsonify(meta), 201
+
+    @app.route('/api/v1/sessions', methods=['GET'])
+    def list_sessions():
+        return jsonify({'sessions': session_manager.list_sessions()})
+
+    @app.route('/api/v1/sessions/<session_id>', methods=['GET'])
+    def get_session(session_id):
+        s = session_manager.get(session_id)
+        return jsonify(s) if s else (jsonify({'error': 'Not found'}), 404)
+
+    @app.route('/api/v1/sessions/<session_id>', methods=['PUT'])
+    def update_session(session_id):
+        data = request.get_json() or {}
+        s = session_manager.update(
+            session_id,
+            **{k: data[k] for k in ('turns', 'bridge_note', 'status') if k in data}
+        )
+        return jsonify(s) if s else (jsonify({'error': 'Not found'}), 404)
+
+    @app.route('/api/v1/sessions/<session_id>', methods=['DELETE'])
+    def delete_session(session_id):
+        ok = session_manager.delete(session_id)
+        return jsonify({'deleted': ok}) if ok else (jsonify({'error': 'Not found'}), 404)
+
+    @app.route('/api/v1/sessions/<session_id>/analysis', methods=['PUT'])
+    def save_session_analysis(session_id):
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data'}), 400
+        s = session_manager.update(session_id, analysis=data)
+        return jsonify({'ok': True}) if s else (jsonify({'error': 'Not found'}), 404)
+
+    @app.route('/api/v1/sessions/<session_id>/audio/<filename>', methods=['POST'])
+    def upload_session_audio(session_id, filename):
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No audio file (field: audio)'}), 400
+        audio_file = request.files['audio']
+        data = audio_file.read()
+        session_manager.save_audio(session_id, filename, data)
+        return jsonify({'ok': True, 'filename': filename})
+
+    @app.route('/api/v1/sessions/<session_id>/audio/<filename>', methods=['GET'])
+    def get_session_audio(session_id, filename):
+        p = session_manager.get_audio_path(session_id, filename)
+        if not p:
+            return jsonify({'error': 'Not found'}), 404
+        suffix = Path(filename).suffix.lower()
+        mime_map = {'.webm': 'audio/webm', '.wav': 'audio/wav', '.mp3': 'audio/mpeg',
+                    '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.flac': 'audio/flac'}
+        mime = mime_map.get(suffix, 'application/octet-stream')
+        return send_file(p, mimetype=mime, as_attachment=False)
+
+    @app.route('/api/v1/sessions/<session_id>/transcript.txt', methods=['GET'])
+    def download_transcript(session_id):
+        text = session_manager.transcript_text(session_id)
+        if text is None:
+            return jsonify({'error': 'Not found'}), 404
+        return Response(
+            text,
+            mimetype='text/plain; charset=utf-8',
+            headers={'Content-Disposition': f'attachment; filename="transcript_{session_id}.txt"'}
+        )
+
+    @app.route('/api/v1/sessions/<session_id>/report.pdf', methods=['GET'])
+    def download_session_report(session_id):
+        s = session_manager.get(session_id)
+        if not s:
+            return jsonify({'error': 'Session not found'}), 404
+        try:
+            from src.reports.generator import generate_pdf
+            pdf_bytes = generate_pdf(s)
+            return Response(
+                pdf_bytes,
+                mimetype='application/pdf',
+                headers={'Content-Disposition': f'attachment; filename="report_{session_id}.pdf"'}
+            )
+        except ImportError as e:
+            return jsonify({'error': str(e)}), 503
+        except Exception as e:
+            logger.error(f"PDF generation error: {e}")
+            return jsonify({'error': str(e)}), 500
 
     # ── Docs ────────────────────────────────────────────────
     @app.route('/api/v1/docs')

@@ -1,9 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep -r \"NotImplementedError\\\\|TODO\\\\|FIXME\\\\|XXX\\\\|pass$\" src/ --include=\"*.py\")",
-      "Bash(.venv\\\\Scripts\\\\python.exe -m pytest tests/ -v)",
-      "Bash(python -c \"from src.api.app import create_app; app = create_app\\(\\); print\\('OK'\\)\")"
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "LS",
+      "Bash(*)"
     ]
   }
 }

@@ -9,8 +9,10 @@ let clientIsRecording = false;
 let clientMediaRecorder = null;
 let clientRecordingChunks = [];
 let clientResponseRecorded = false;
+let currentSessionId = null;
 
-// Therapist state
+// Therapist / analysis state
+let lastAnalysisData = null;
 let currentKBId = null;
 let kbLoaded = false;
 let promptsData = [];
@@ -30,6 +32,14 @@ const EMOTION_ICONS = {
   Anxious: '😰', Depressed: '😔', Frustrated: '😤', Hopeful: '🌱',
   Happy: '😊', Angry: '😠', Worried: '😟', Confused: '😕',
   Calm: '😌', Embarrassed: '😳',
+};
+
+const KB_SECTION_CATEGORIES = {
+  summary:  'clinical_report',
+  emotions: 'sentiment',
+  themes:   'themes',
+  dynamics: 'dynamics',
+  plan:     'clinical_report',
 };
 
 /* ── Init ──────────────────────────────────────────────── */
@@ -52,25 +62,34 @@ async function loadPromptsInBackground() {
 /* ── Mode toggle ───────────────────────────────────────── */
 function setMode(newMode) {
   appMode = newMode;
-  const isClient = newMode === 'client';
-  document.getElementById('clientView').classList.toggle('hidden', !isClient);
-  document.getElementById('therapistView').classList.toggle('hidden', isClient);
-  document.getElementById('modeBtnClient').classList.toggle('active', isClient);
-  document.getElementById('modeBtnTherapist').classList.toggle('active', !isClient);
-  if (!isClient) {
-    renderPromptList();
+  document.getElementById('clientView').classList.toggle('hidden', newMode !== 'client');
+  document.getElementById('therapistView').classList.toggle('hidden', newMode !== 'therapist');
+  document.getElementById('manageView').classList.toggle('hidden', newMode !== 'manage');
+  document.getElementById('modeBtnClient').classList.toggle('active', newMode === 'client');
+  document.getElementById('modeBtnTherapist').classList.toggle('active', newMode === 'therapist');
+  document.getElementById('modeBtnManage').classList.toggle('active', newMode === 'manage');
+
+  if (newMode === 'therapist') {
+    loadSessionDropdown();
     updateSessionTurnsPreview();
     updateSessionTurnCount();
+    ensureKBLoaded().then(() => loadKBSelectorsForTabs());
+  }
+  if (newMode === 'manage') {
+    renderPromptList();
+    ensureKBLoaded();
     if (!promptsLoaded) loadPromptsInBackground();
   }
 }
 
-/* ── Client session: welcome → session → bridge ────────── */
+/* ── Client session screens ────────────────────────────── */
 function showClientScreen(name) {
   document.querySelectorAll('.client-screen').forEach(s => s.classList.remove('active'));
-  document.getElementById('screen' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active');
+  const id = 'screen' + name.charAt(0).toUpperCase() + name.slice(1);
+  document.getElementById(id).classList.add('active');
 }
 
+/* ── Start session ─────────────────────────────────────── */
 async function startClientSession() {
   try {
     const res = await fetch('/api/v1/prompts/session');
@@ -81,9 +100,17 @@ async function startClientSession() {
   }
 
   if (sessionPrompts.length === 0) {
-    alert('No prompts available. Add prompts in the Therapist view first.');
+    alert('No prompts available. Add prompts in the Manage view first.');
     return;
   }
+
+  const sid = `session_${new Date().toISOString().replace(/[-:T.]/g, '').slice(0, 15)}`;
+  currentSessionId = sid;
+  fetch('/api/v1/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sid }),
+  }).catch(() => {});
 
   sessionTurns = [];
   clientPromptIndex = 0;
@@ -153,8 +180,7 @@ async function startClientRecording() {
   clientMediaRecorder.start();
   clientIsRecording = true;
 
-  const btn = document.getElementById('clientRecordBtn');
-  btn.classList.add('recording');
+  document.getElementById('clientRecordBtn').classList.add('recording');
   document.getElementById('iconMic').classList.add('hidden');
   document.getElementById('iconStop').classList.remove('hidden');
   document.getElementById('recordPulse').classList.add('active');
@@ -165,8 +191,7 @@ function stopClientRecording() {
   if (clientMediaRecorder && clientIsRecording) {
     clientMediaRecorder.stop();
     clientIsRecording = false;
-    const btn = document.getElementById('clientRecordBtn');
-    btn.classList.remove('recording');
+    document.getElementById('clientRecordBtn').classList.remove('recording');
     document.getElementById('iconMic').classList.remove('hidden');
     document.getElementById('iconStop').classList.add('hidden');
     document.getElementById('recordPulse').classList.remove('active');
@@ -177,8 +202,8 @@ function stopClientRecording() {
 
 async function processClientRecording(blob) {
   const prompt = sessionPrompts[clientPromptIndex];
+  const audioFilename = `${prompt.id}.webm`;
 
-  // Always add the prompt as the therapist turn
   sessionTurns.push({
     timestamp: sessionTurns.length,
     speaker: 'therapist',
@@ -186,24 +211,40 @@ async function processClientRecording(blob) {
     prompt_id: prompt.id,
   });
 
-  // Attempt transcription
+  let transcribedText = null;
   try {
     const form = new FormData();
-    form.append('audio', blob, 'response.webm');
+    form.append('audio', blob, audioFilename);
     const res = await fetch('/api/v1/transcribe', { method: 'POST', body: form });
     if (res.ok) {
       const data = await res.json();
-      if (data.text && data.text.trim()) {
-        sessionTurns.push({
-          timestamp: sessionTurns.length,
-          speaker: 'client',
-          text: data.text.trim(),
-          prompt_id: prompt.id,
-        });
-      }
+      transcribedText = data.text?.trim() || null;
     }
-  } catch (err) {
-    // Transcription unavailable — continue without client turn
+  } catch (err) {}
+
+  if (transcribedText) {
+    sessionTurns.push({
+      timestamp: sessionTurns.length,
+      speaker: 'client',
+      text: transcribedText,
+      prompt_id: prompt.id,
+      audio_file: audioFilename,
+    });
+  }
+
+  if (currentSessionId) {
+    const audioForm = new FormData();
+    audioForm.append('audio', blob, audioFilename);
+    fetch(`/api/v1/sessions/${currentSessionId}/audio/${audioFilename}`, {
+      method: 'POST',
+      body: audioForm,
+    }).catch(() => {});
+
+    fetch(`/api/v1/sessions/${currentSessionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ turns: sessionTurns }),
+    }).catch(() => {});
   }
 
   hideClientProcessing();
@@ -228,7 +269,6 @@ function setClientResponseOk(visible) {
 
 function skipCurrentPrompt() {
   const prompt = sessionPrompts[clientPromptIndex];
-  // Add prompt as therapist turn (skipped — no client response added)
   sessionTurns.push({
     timestamp: sessionTurns.length,
     speaker: 'therapist',
@@ -254,6 +294,7 @@ async function endClientSession() {
   updateSessionTurnsPreview();
   updateSessionTurnCount();
 
+  let bridgeNote = 'Thank you for taking the time to reflect today. Each session is a step forward.';
   try {
     const res = await fetch('/api/v1/session/bridge', {
       method: 'POST',
@@ -262,20 +303,208 @@ async function endClientSession() {
     });
     if (res.ok) {
       const data = await res.json();
-      document.getElementById('bridgeNoteText').textContent =
-        data.bridge_note || 'Thank you for taking the time to reflect today.';
-    } else {
-      document.getElementById('bridgeNoteText').textContent =
-        'Thank you for sharing today. Each session is a step forward.';
+      bridgeNote = data.bridge_note || bridgeNote;
     }
-  } catch (err) {
-    document.getElementById('bridgeNoteText').textContent =
-      'Thank you for sharing today. Each session is a step forward.';
+  } catch (err) {}
+
+  document.getElementById('bridgeNoteText').textContent = bridgeNote;
+
+  if (currentSessionId) {
+    try {
+      await fetch(`/api/v1/sessions/${currentSessionId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          turns: sessionTurns,
+          bridge_note: bridgeNote,
+          status: 'complete',
+        }),
+      });
+    } catch (e) {}
   }
+  loadSessionDropdown();
 }
 
 function resetClientSession() {
   showClientScreen('welcome');
+}
+
+/* ── Therapist session dropdown ────────────────────────── */
+async function loadSessionDropdown() {
+  const sel = document.getElementById('sessionDropdown');
+  if (!sel) return;
+  try {
+    const res = await fetch('/api/v1/sessions');
+    const data = await res.json();
+    const sessions = (data.sessions || []).filter(s => s.client_turns > 0 || s.status === 'complete');
+    sel.innerHTML = '<option value="">Select a past session…</option>' +
+      sessions.map(s => {
+        const d = s.created_at ? new Date(s.created_at) : null;
+        const dateStr = d ? d.toLocaleDateString('en', { month: 'short', day: 'numeric' }) +
+          '  ' + d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '—';
+        const turns = `${s.client_turns} response${s.client_turns !== 1 ? 's' : ''}`;
+        const analyzed = s.has_analysis ? ' · analyzed' : '';
+        const selected = s.session_id === currentSessionId ? ' selected' : '';
+        return `<option value="${escHtml(s.session_id)}"${selected}>${dateStr} — ${turns}${analyzed}</option>`;
+      }).join('');
+    if (currentSessionId && sessionTurns.length === 0) {
+      const found = sessions.find(s => s.session_id === currentSessionId);
+      if (found) await _loadSessionTurns(currentSessionId);
+    }
+  } catch (e) {}
+}
+
+async function selectSessionFromDropdown(sessionId) {
+  if (!sessionId) {
+    sessionTurns = [];
+    currentSessionId = null;
+    lastAnalysisData = null;
+    updateSessionTurnsPreview();
+    updateSessionTurnCount();
+    hideResults();
+    document.getElementById('exportPdfBtn').classList.add('hidden');
+    return;
+  }
+  await _loadSessionTurns(sessionId);
+  lastAnalysisData = null;
+  hideResults();
+  document.getElementById('exportPdfBtn').classList.add('hidden');
+}
+
+async function _loadSessionTurns(sessionId) {
+  try {
+    const res = await fetch(`/api/v1/sessions/${sessionId}`);
+    const session = await res.json();
+    sessionTurns = session.turns || [];
+    currentSessionId = sessionId;
+    updateSessionTurnsPreview();
+    updateSessionTurnCount();
+  } catch (e) {}
+}
+
+/* ── Client history browser ────────────────────────────── */
+async function openHistory() {
+  showClientScreen('history');
+  document.getElementById('historyList').innerHTML =
+    '<div style="display:flex;justify-content:center;padding:40px"><div class="mini-spinner" style="width:24px;height:24px;border-width:3px"></div></div>';
+  try {
+    const res = await fetch('/api/v1/sessions');
+    const data = await res.json();
+    renderHistory(data.sessions || []);
+  } catch (e) {
+    document.getElementById('historyList').innerHTML =
+      '<p class="muted-hint" style="text-align:center;padding:32px">Could not load sessions.</p>';
+  }
+}
+
+function renderHistory(sessions) {
+  const list = document.getElementById('historyList');
+  if (sessions.length === 0) {
+    list.innerHTML = '<p class="muted-hint" style="text-align:center;padding:40px">No sessions recorded yet.</p>';
+    return;
+  }
+
+  list.innerHTML = sessions.map(s => {
+    const date = s.created_at ? new Date(s.created_at).toLocaleString() : 'Unknown date';
+    const statusBadge = s.status === 'complete'
+      ? '<span class="hist-badge complete">Complete</span>'
+      : '<span class="hist-badge in-progress">In progress</span>';
+    const analysisBadge = s.has_analysis
+      ? '<span class="hist-badge analyzed">Analyzed</span>' : '';
+
+    return `
+      <div class="hist-session" id="hist-${s.session_id}">
+        <div class="hist-session-header" onclick="toggleHistorySession('${s.session_id}')">
+          <div class="hist-session-meta">
+            <div class="hist-session-id">${escHtml(s.session_id)}</div>
+            <div class="hist-session-date">${date} · ${s.client_turns} response${s.client_turns !== 1 ? 's' : ''}</div>
+            <div class="hist-badges">${statusBadge}${analysisBadge}</div>
+          </div>
+          <div class="hist-session-actions" onclick="event.stopPropagation()">
+            <a class="btn-hist-action" href="/api/v1/sessions/${s.session_id}/transcript.txt" download>
+              ↓ Transcript
+            </a>
+            ${s.has_analysis ? `<a class="btn-hist-action pdf" href="/api/v1/sessions/${s.session_id}/report.pdf" download>↓ PDF</a>` : ''}
+            <button class="btn-hist-delete" onclick="deleteHistorySession('${s.session_id}')" title="Delete session">✕</button>
+          </div>
+        </div>
+        <div class="hist-session-body hidden" id="hist-body-${s.session_id}">
+          <div class="hist-loading">
+            <div class="mini-spinner"></div>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function toggleHistorySession(sessionId) {
+  const body = document.getElementById(`hist-body-${sessionId}`);
+  const isHidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !isHidden);
+  if (isHidden && body.querySelector('.hist-loading')) {
+    await loadHistorySession(sessionId, body);
+  }
+}
+
+async function loadHistorySession(sessionId, bodyEl) {
+  try {
+    const res = await fetch(`/api/v1/sessions/${sessionId}`);
+    const session = await res.json();
+    const turns = session.turns || [];
+
+    const items = turns.map((t, i) => {
+      const cls = t.speaker === 'therapist' ? 'hist-turn-therapist' : 'hist-turn-client';
+      const label = t.speaker === 'therapist' ? 'Prompt' : 'Response';
+      const text = t.skipped ? '<em style="color:#9c7d65">(Skipped)</em>' : escHtml(t.text);
+      const audioBtn = (t.speaker === 'client' && t.audio_file && !t.skipped)
+        ? `<div class="hist-audio" id="audio-zone-${sessionId}-${i}">
+             <button class="btn-hist-play" onclick="toggleAudio('${sessionId}', '${t.audio_file}', ${i})">▶ Play</button>
+             <a class="btn-hist-action" href="/api/v1/sessions/${sessionId}/audio/${t.audio_file}" download>↓ Audio</a>
+           </div>`
+        : '';
+      return `
+        <div class="hist-turn ${cls}">
+          <div class="hist-turn-label">${label}</div>
+          <div class="hist-turn-text">${text}</div>
+          ${audioBtn}
+        </div>`;
+    }).join('');
+
+    const bridge = session.bridge_note
+      ? `<div class="hist-bridge"><div class="hist-bridge-label">Closing Note</div>${escHtml(session.bridge_note)}</div>` : '';
+
+    bodyEl.innerHTML = (items || '<p class="muted-hint">No turns recorded.</p>') + bridge;
+  } catch (e) {
+    bodyEl.innerHTML = '<p class="muted-hint" style="padding:12px">Failed to load session.</p>';
+  }
+}
+
+function toggleAudio(sessionId, filename, turnIndex) {
+  const zone = document.getElementById(`audio-zone-${sessionId}-${turnIndex}`);
+  const existing = zone.querySelector('audio');
+  if (existing) {
+    existing.remove();
+    zone.querySelector('.btn-hist-play').textContent = '▶ Play';
+    return;
+  }
+  const audio = document.createElement('audio');
+  audio.src = `/api/v1/sessions/${sessionId}/audio/${filename}`;
+  audio.controls = true;
+  audio.style.cssText = 'height:32px;margin-top:6px;width:100%;max-width:280px';
+  zone.appendChild(audio);
+  audio.play().catch(() => {});
+  zone.querySelector('.btn-hist-play').textContent = '■ Close';
+}
+
+async function deleteHistorySession(sessionId) {
+  if (!confirm(`Delete session "${sessionId}"? This cannot be undone.`)) return;
+  try {
+    await fetch(`/api/v1/sessions/${sessionId}`, { method: 'DELETE' });
+    const el = document.getElementById(`hist-${sessionId}`);
+    if (el) el.remove();
+  } catch (e) {
+    alert('Delete failed.');
+  }
 }
 
 /* ── Analysis (therapist) ──────────────────────────────── */
@@ -290,7 +519,7 @@ async function analyze() {
     return;
   }
 
-  const sessionId = document.getElementById('sessionId').value.trim() || `session_${Date.now()}`;
+  const sessionId = currentSessionId || `session_${Date.now()}`;
   setLoading(true);
   hideResults();
   dismissError();
@@ -306,12 +535,147 @@ async function analyze() {
       showError(data.message || data.error || 'Analysis failed.');
       return;
     }
+    lastAnalysisData = data;
     renderResults(data);
+
+    if (currentSessionId) {
+      fetch(`/api/v1/sessions/${currentSessionId}/analysis`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).catch(() => {});
+    }
   } catch (err) {
     showError('Could not reach the server. Make sure the API is running.');
   } finally {
     setLoading(false);
   }
+}
+
+/* ── Per-section re-analysis ───────────────────────────── */
+async function reanalyzeSection(section, tabName) {
+  if (!lastAnalysisData) {
+    showError('Run a full analysis first before re-analyzing a section.');
+    return;
+  }
+  const validTurns = sessionTurns.filter(t => t.text && !t.skipped);
+  if (validTurns.length < 2) {
+    showError('Not enough session content to analyze.');
+    return;
+  }
+
+  const selectId = `kb-select-${tabName}`;
+  const kbId = document.getElementById(selectId)?.value || '';
+
+  const btn = document.querySelector(`#tab-${tabName} .btn-reanalyze`);
+  if (btn) { btn.disabled = true; btn.textContent = '↻ Analyzing…'; }
+
+  try {
+    const body = {
+      section,
+      transcript: validTurns,
+      kb_id: kbId || undefined,
+      session_id: currentSessionId || 'unknown',
+      patient_id: 'anonymous',
+    };
+
+    // For clinical_report, pass prior analysis context
+    if (section === 'clinical_report' && lastAnalysisData) {
+      const analysis = lastAnalysisData.analysis || {};
+      body.sentiment  = analysis.sentiment_analysis || {};
+      body.thematic   = analysis.thematic_analysis || {};
+      body.relational = analysis.relational_dynamics || {};
+    }
+
+    const res = await fetch('/api/v1/analyze/section', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showError(data.error || 'Re-analysis failed.');
+      return;
+    }
+
+    const result = data.result || {};
+
+    // Patch lastAnalysisData and re-render the affected tab(s)
+    if (section === 'sentiment') {
+      lastAnalysisData.analysis = lastAnalysisData.analysis || {};
+      lastAnalysisData.analysis.sentiment_analysis = result;
+      renderEmotionsTab(result, lastAnalysisData.insight_report?.sections?.emotional_mapping || {});
+    } else if (section === 'themes') {
+      lastAnalysisData.analysis = lastAnalysisData.analysis || {};
+      lastAnalysisData.analysis.thematic_analysis = result;
+      renderThemesTab(lastAnalysisData.insight_report?.sections?.thematic_analysis || {}, result);
+    } else if (section === 'dynamics') {
+      lastAnalysisData.analysis = lastAnalysisData.analysis || {};
+      lastAnalysisData.analysis.relational_dynamics = result;
+      renderDynamicsTab(result, lastAnalysisData.insight_report?.sections?.relational_dynamics || {});
+    } else if (section === 'clinical_report') {
+      lastAnalysisData.insight_report = lastAnalysisData.insight_report || {};
+      lastAnalysisData.insight_report.sections = result;
+      const sentiment  = lastAnalysisData.analysis?.sentiment_analysis || {};
+      const relational = lastAnalysisData.analysis?.relational_dynamics || {};
+      renderSummaryTab(result, sentiment, relational);
+      renderPlanTab(result.clinical_hypothesis || {}, result.recommendations || {});
+    }
+  } catch (err) {
+    showError('Re-analysis failed. Check server connection.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Re-analyze'; }
+  }
+}
+
+/* ── KB selectors for analysis tabs ───────────────────── */
+async function ensureKBLoaded() {
+  if (kbLoaded && window._kbInstructions) return;
+  try {
+    const res = await fetch('/api/v1/kb/instructions');
+    const data = await res.json();
+    window._kbInstructions = data.instructions || [];
+    renderKBList(window._kbInstructions);
+    kbLoaded = true;
+  } catch (e) {
+    document.getElementById('kbList').innerHTML =
+      '<p class="muted" style="padding:8px">Could not load instructions.</p>';
+  }
+}
+
+function loadKBSelectorsForTabs() {
+  const instructions = window._kbInstructions || [];
+  const LABELS = {
+    sentiment: 'Emotion Analysis', themes: 'Thematic Analysis',
+    dynamics: 'Relational Dynamics', clinical_report: 'Clinical Report', custom: 'Custom',
+  };
+
+  Object.entries(KB_SECTION_CATEGORIES).forEach(([tabName, defaultCat]) => {
+    const sel = document.getElementById(`kb-select-${tabName}`);
+    if (!sel) return;
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">Default</option>' +
+      instructions.map(inst =>
+        `<option value="${escHtml(inst.id)}" ${inst.id === currentVal ? 'selected' : ''}>` +
+        `${escHtml(inst.name)} (${LABELS[inst.category] || inst.category})</option>`
+      ).join('');
+    // Pre-select the matching category instruction if no selection yet
+    if (!currentVal) {
+      const match = instructions.find(i => i.category === defaultCat && i.enabled);
+      if (match) sel.value = match.id;
+    }
+  });
+}
+
+/* ── Report download ───────────────────────────────────── */
+function downloadReport() {
+  if (!currentSessionId) return;
+  const a = document.createElement('a');
+  a.href = `/api/v1/sessions/${currentSessionId}/report.pdf`;
+  a.download = `report_${currentSessionId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 }
 
 /* ── Render results ────────────────────────────────────── */
@@ -330,8 +694,14 @@ function renderResults(data) {
   renderPlanTab(sections.clinical_hypothesis || {}, sections.recommendations || {});
 
   document.getElementById('aiEnhancedTag').classList.toggle('hidden', !data.ai_enhanced);
+  const pdfBtn = document.getElementById('exportPdfBtn');
+  pdfBtn.classList.toggle('hidden', !currentSessionId);
+
   showResults();
   switchTabById('summary');
+
+  // Populate KB selectors in case they changed
+  ensureKBLoaded().then(() => loadKBSelectorsForTabs());
 }
 
 function renderSessionArc() {
@@ -418,6 +788,18 @@ function renderEmotionsTab(sentiment, emotionMapping) {
     ${distItems || '<p class="muted">No emotions detected.</p>'}
   `;
 
+  // Explanation card
+  const explanation = summary.explanation;
+  const explCard = document.getElementById('emotionExplanationCard');
+  if (explanation) {
+    explCard.innerHTML = `
+      <div class="card-title">Clinical Interpretation</div>
+      <div class="analysis-explanation">${escHtml(explanation)}</div>
+    `;
+  } else {
+    explCard.innerHTML = '';
+  }
+
   const trajItems = points.slice(0, 20).map((p, i) => `
     <div class="traj-item">
       <div class="traj-dot">${EMOTION_ICONS[p.emotion] || '●'}</div>
@@ -469,6 +851,18 @@ function renderThemesTab(reportThematic, rawThematic) {
     <div class="card-title">Cognitive Distortions</div>
     ${distItems || '<p class="muted">No cognitive distortions detected.</p>'}
   `;
+
+  // Clinical significance card
+  const sig = rawThematic.clinical_significance;
+  const sigCard = document.getElementById('clinicalSignificanceCard');
+  if (sig) {
+    sigCard.innerHTML = `
+      <div class="card-title">Clinical Significance</div>
+      <div class="analysis-explanation">${escHtml(sig)}</div>
+    `;
+  } else {
+    sigCard.innerHTML = '';
+  }
 }
 
 /* ── Dynamics tab ──────────────────────────────────────── */
@@ -493,13 +887,23 @@ function renderDynamicsTab(relational, reportDynamics) {
   document.getElementById('allianceCard').innerHTML = `
     <div class="card-title">Therapeutic Alliance — <span style="color:var(--primary)">${alliance.rating || '—'}</span></div>
     <div class="alliance-meter">
-      <div class="alliance-bar-wrap">
-        <div class="alliance-bar" style="width:${Math.round(score)}%"></div>
-      </div>
+      <div class="alliance-bar-wrap"><div class="alliance-bar" style="width:${Math.round(score)}%"></div></div>
       <div class="alliance-labels"><span>Weak</span><span>Strong</span></div>
     </div>
     <div style="margin-top:14px">${compBars}</div>
   `;
+
+  // Alliance interpretation card
+  const interp = alliance.interpretation;
+  const interpCard = document.getElementById('allianceInterpCard');
+  if (interp) {
+    interpCard.innerHTML = `
+      <div class="card-title">Alliance Interpretation</div>
+      <div class="analysis-explanation">${escHtml(interp)}</div>
+    `;
+  } else {
+    interpCard.innerHTML = '';
+  }
 
   const speakerRows = Object.entries(profiles).map(([name, info]) => {
     const cls = name.toLowerCase().includes('therapist') ? 'therapist' : 'client';
@@ -575,11 +979,23 @@ function renderPlanTab(hypothesis, recommendations) {
   `;
 }
 
-/* ── Prompt library (therapist sidebar) ────────────────── */
+/* ── Manage view ───────────────────────────────────────── */
+function switchManagePanel(panel) {
+  document.querySelectorAll('.manage-nav-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.manage-panel').forEach(el => el.classList.remove('active'));
+  document.getElementById(`manageNav${panel.charAt(0).toUpperCase() + panel.slice(1)}`).classList.add('active');
+  document.getElementById(`manage-panel-${panel}`).classList.add('active');
+  if (panel === 'kb') {
+    ensureKBLoaded();
+  }
+}
+
+/* ── Prompt library ────────────────────────────────────── */
 function renderPromptList() {
   const list = document.getElementById('promptList');
+  if (!list) return;
   if (!promptsData.length) {
-    list.innerHTML = '<p class="muted-hint">No prompts. Click + Add.</p>';
+    list.innerHTML = '<p class="muted-hint">No prompts. Click + New Prompt.</p>';
     return;
   }
   const sorted = [...promptsData].sort((a, b) => (a.order || 999) - (b.order || 999));
@@ -665,7 +1081,6 @@ async function savePrompt() {
     }
     const data = await res.json();
     if (!res.ok) { alert(data.error || 'Save failed.'); return; }
-
     promptsLoaded = false;
     await loadPromptsInBackground();
     closePromptEdit();
@@ -728,9 +1143,10 @@ async function rephraseCurrentPrompt() {
   }
 }
 
-/* ── Session turns preview (therapist sidebar) ─────────── */
+/* ── Session turns preview ─────────────────────────────── */
 function updateSessionTurnsPreview() {
   const preview = document.getElementById('sessionTurnsPreview');
+  if (!preview) return;
   if (sessionTurns.length === 0) {
     preview.innerHTML = '<p class="muted-hint">Switch to Client view to record a session.</p>';
     return;
@@ -744,17 +1160,182 @@ function updateSessionTurnsPreview() {
 }
 
 function updateSessionTurnCount() {
+  const el = document.getElementById('sessionTurnCount');
+  if (!el) return;
   const count = sessionTurns.filter(t => !t.skipped).length;
-  document.getElementById('sessionTurnCount').textContent = `${count} turn${count !== 1 ? 's' : ''}`;
+  el.textContent = `${count} turn${count !== 1 ? 's' : ''}`;
 }
 
 function clearAll() {
   sessionTurns = [];
   sessionPrompts = [];
-  document.getElementById('sessionId').value = '';
+  currentSessionId = null;
+  lastAnalysisData = null;
+  const dd = document.getElementById('sessionDropdown');
+  if (dd) dd.value = '';
   updateSessionTurnsPreview();
   updateSessionTurnCount();
   hideResults();
+  document.getElementById('exportPdfBtn').classList.add('hidden');
+}
+
+/* ── Knowledge Base ────────────────────────────────────── */
+async function loadKBInstructions() {
+  await ensureKBLoaded();
+}
+
+function renderKBList(instructions) {
+  const list = document.getElementById('kbList');
+  if (!list) return;
+  const LABELS = {
+    sentiment: 'Emotion Analysis', themes: 'Thematic Analysis',
+    dynamics: 'Relational Dynamics', clinical_report: 'Clinical Report', custom: 'Custom'
+  };
+  list.innerHTML = instructions.map(inst => `
+    <div class="kb-item ${inst.id === currentKBId ? 'selected' : ''}" onclick="selectInstruction('${inst.id}')">
+      <div class="kb-item-dot ${inst.enabled ? 'enabled' : 'disabled'}"></div>
+      <div class="kb-item-info">
+        <div class="kb-item-name">${escHtml(inst.name)}</div>
+        <div class="kb-item-cat">${LABELS[inst.category] || inst.category}</div>
+      </div>
+    </div>`).join('');
+  window._kbInstructions = instructions;
+}
+
+async function selectInstruction(id) {
+  currentKBId = id;
+  const inst = (window._kbInstructions || []).find(i => i.id === id);
+  if (!inst) return;
+  document.getElementById('kbEditorPlaceholder').classList.add('hidden');
+  document.getElementById('kbEditorForm').classList.remove('hidden');
+  setEl('kbName', inst.name);
+  setEl('kbCategory', inst.category);
+  document.getElementById('kbPrompt').value = inst.prompt;
+  document.getElementById('kbEnabled').checked = inst.enabled;
+  renderKBList(window._kbInstructions || []);
+  await loadKBFiles(id);
+}
+
+function newInstruction() {
+  currentKBId = null;
+  document.getElementById('kbEditorPlaceholder').classList.add('hidden');
+  document.getElementById('kbEditorForm').classList.remove('hidden');
+  setEl('kbName', '');
+  setEl('kbCategory', 'custom');
+  document.getElementById('kbPrompt').value = '';
+  document.getElementById('kbEnabled').checked = true;
+  document.querySelectorAll('.kb-item').forEach(el => el.classList.remove('selected'));
+  document.getElementById('kbFileList').innerHTML = '<p class="muted-hint" id="kbFilesEmpty">No files attached.</p>';
+}
+
+async function saveInstruction() {
+  const name = getEl('kbName').trim();
+  const category = getEl('kbCategory');
+  const prompt = document.getElementById('kbPrompt').value.trim();
+  const enabled = document.getElementById('kbEnabled').checked;
+  if (!name || !prompt) { alert('Name and instructions are required.'); return; }
+  try {
+    let res;
+    if (currentKBId) {
+      res = await fetch(`/api/v1/kb/instructions/${currentKBId}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, category, prompt, enabled }),
+      });
+    } else {
+      res = await fetch('/api/v1/kb/instructions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, category, prompt }),
+      });
+    }
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Save failed.'); return; }
+    currentKBId = data.id;
+    kbLoaded = false;
+    await ensureKBLoaded();
+    await selectInstruction(data.id);
+  } catch (e) { alert('Save failed.'); }
+}
+
+async function deleteInstruction() {
+  if (!currentKBId || !confirm('Delete this instruction?')) return;
+  try {
+    const res = await fetch(`/api/v1/kb/instructions/${currentKBId}`, { method: 'DELETE' });
+    if (res.ok) {
+      currentKBId = null;
+      document.getElementById('kbEditorPlaceholder').classList.remove('hidden');
+      document.getElementById('kbEditorForm').classList.add('hidden');
+      kbLoaded = false;
+      await ensureKBLoaded();
+    }
+  } catch (e) { alert('Delete failed.'); }
+}
+
+async function resetKB() {
+  if (!confirm('Reset all knowledge base instructions to defaults?')) return;
+  try {
+    const res = await fetch('/api/v1/kb/reset', { method: 'POST' });
+    const data = await res.json();
+    currentKBId = null;
+    document.getElementById('kbEditorPlaceholder').classList.remove('hidden');
+    document.getElementById('kbEditorForm').classList.add('hidden');
+    renderKBList(data.instructions || []);
+    kbLoaded = true;
+  } catch (e) { alert('Reset failed.'); }
+}
+
+/* ── KB File Attachments ───────────────────────────────── */
+async function loadKBFiles(instId) {
+  const listEl = document.getElementById('kbFileList');
+  if (!listEl || !instId) return;
+  try {
+    const res = await fetch(`/api/v1/kb/instructions/${instId}/files`);
+    const data = await res.json();
+    renderKBFiles(data.files || []);
+  } catch (e) {
+    listEl.innerHTML = '<p class="muted-hint">Could not load files.</p>';
+  }
+}
+
+function renderKBFiles(files) {
+  const listEl = document.getElementById('kbFileList');
+  if (!listEl) return;
+  if (!files.length) {
+    listEl.innerHTML = '<p class="muted-hint" id="kbFilesEmpty">No files attached.</p>';
+    return;
+  }
+  listEl.innerHTML = files.map(f => `
+    <div class="kb-file-chip">
+      <span class="kb-file-icon">${f.file_type === 'pdf' ? '📄' : '📝'}</span>
+      <span class="kb-file-name">${escHtml(f.filename)}</span>
+      <button class="kb-file-delete" onclick="deleteKBFile('${escHtml(f.filename)}')" title="Remove">✕</button>
+    </div>`).join('');
+}
+
+async function uploadKBFile(input) {
+  if (!currentKBId) { alert('Save the instruction first, then attach files.'); input.value = ''; return; }
+  const file = input.files[0];
+  if (!file) return;
+  const form = new FormData();
+  form.append('file', file, file.name);
+  input.value = '';
+  try {
+    const res = await fetch(`/api/v1/kb/instructions/${currentKBId}/files`, {
+      method: 'POST', body: form,
+    });
+    const data = await res.json();
+    if (!res.ok) { alert(data.error || 'Upload failed.'); return; }
+    await loadKBFiles(currentKBId);
+  } catch (e) { alert('Upload failed.'); }
+}
+
+async function deleteKBFile(filename) {
+  if (!currentKBId || !confirm(`Remove "${filename}"?`)) return;
+  try {
+    const res = await fetch(`/api/v1/kb/instructions/${currentKBId}/files/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+    });
+    if (res.ok) await loadKBFiles(currentKBId);
+  } catch (e) { alert('Delete failed.'); }
 }
 
 /* ── Settings Modal ────────────────────────────────────── */
@@ -814,12 +1395,14 @@ function applyTranscriptionSettings(data) {
   updateTranscriptionUI();
 
   const badge = document.getElementById('transcriptionBadge');
-  if (prov !== 'none') {
-    badge.textContent = prov === 'whisper_local' ? 'whisper' : prov;
-    badge.className = 'ai-badge active';
-  } else {
-    badge.textContent = 'trans: off';
-    badge.className = 'ai-badge inactive';
+  if (badge) {
+    if (prov !== 'none') {
+      badge.textContent = prov === 'whisper_local' ? 'whisper' : prov;
+      badge.className = 'ai-badge active';
+    } else {
+      badge.textContent = 'trans: off';
+      badge.className = 'ai-badge inactive';
+    }
   }
 }
 
@@ -865,114 +1448,6 @@ async function saveSettings() {
   } catch (err) {
     alert('Failed to save settings. Is the server running?');
   }
-}
-
-/* ── Knowledge Base ────────────────────────────────────── */
-async function loadKBInstructions() {
-  if (kbLoaded) return;
-  try {
-    const res = await fetch('/api/v1/kb/instructions');
-    const data = await res.json();
-    renderKBList(data.instructions || []);
-    kbLoaded = true;
-  } catch (e) {
-    document.getElementById('kbList').innerHTML = '<p class="muted" style="padding:8px">Could not load instructions.</p>';
-  }
-}
-
-function renderKBList(instructions) {
-  const list = document.getElementById('kbList');
-  const CATEGORY_LABELS_KB = {
-    sentiment: 'Emotion Analysis', themes: 'Thematic Analysis',
-    dynamics: 'Relational Dynamics', clinical_report: 'Clinical Report', custom: 'Custom'
-  };
-  list.innerHTML = instructions.map(inst => `
-    <div class="kb-item ${inst.id === currentKBId ? 'selected' : ''}" onclick="selectInstruction('${inst.id}')">
-      <div class="kb-item-dot ${inst.enabled ? 'enabled' : 'disabled'}"></div>
-      <div class="kb-item-info">
-        <div class="kb-item-name">${escHtml(inst.name)}</div>
-        <div class="kb-item-cat">${CATEGORY_LABELS_KB[inst.category] || inst.category}</div>
-      </div>
-    </div>`).join('');
-  window._kbInstructions = instructions;
-}
-
-function selectInstruction(id) {
-  currentKBId = id;
-  const inst = (window._kbInstructions || []).find(i => i.id === id);
-  if (!inst) return;
-  document.getElementById('kbEditorPlaceholder').classList.add('hidden');
-  document.getElementById('kbEditorForm').classList.remove('hidden');
-  setEl('kbName', inst.name);
-  setEl('kbCategory', inst.category);
-  document.getElementById('kbPrompt').value = inst.prompt;
-  document.getElementById('kbEnabled').checked = inst.enabled;
-  renderKBList(window._kbInstructions || []);
-}
-
-function newInstruction() {
-  currentKBId = null;
-  document.getElementById('kbEditorPlaceholder').classList.add('hidden');
-  document.getElementById('kbEditorForm').classList.remove('hidden');
-  setEl('kbName', '');
-  setEl('kbCategory', 'custom');
-  document.getElementById('kbPrompt').value = '';
-  document.getElementById('kbEnabled').checked = true;
-  document.querySelectorAll('.kb-item').forEach(el => el.classList.remove('selected'));
-}
-
-async function saveInstruction() {
-  const name = getEl('kbName').trim();
-  const category = getEl('kbCategory');
-  const prompt = document.getElementById('kbPrompt').value.trim();
-  const enabled = document.getElementById('kbEnabled').checked;
-  if (!name || !prompt) { alert('Name and instructions are required.'); return; }
-  try {
-    let res;
-    if (currentKBId) {
-      res = await fetch(`/api/v1/kb/instructions/${currentKBId}`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category, prompt, enabled }),
-      });
-    } else {
-      res = await fetch('/api/v1/kb/instructions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, category, prompt }),
-      });
-    }
-    const data = await res.json();
-    if (!res.ok) { alert(data.error || 'Save failed.'); return; }
-    currentKBId = data.id;
-    kbLoaded = false;
-    await loadKBInstructions();
-    selectInstruction(data.id);
-  } catch (e) { alert('Save failed.'); }
-}
-
-async function deleteInstruction() {
-  if (!currentKBId || !confirm('Delete this instruction?')) return;
-  try {
-    const res = await fetch(`/api/v1/kb/instructions/${currentKBId}`, { method: 'DELETE' });
-    if (res.ok) {
-      currentKBId = null;
-      document.getElementById('kbEditorPlaceholder').classList.remove('hidden');
-      document.getElementById('kbEditorForm').classList.add('hidden');
-      kbLoaded = false;
-      await loadKBInstructions();
-    }
-  } catch (e) { alert('Delete failed.'); }
-}
-
-async function resetKB() {
-  if (!confirm('Reset all knowledge base instructions to defaults?')) return;
-  try {
-    const res = await fetch('/api/v1/kb/reset', { method: 'POST' });
-    const data = await res.json();
-    currentKBId = null;
-    document.getElementById('kbEditorPlaceholder').classList.remove('hidden');
-    document.getElementById('kbEditorForm').classList.add('hidden');
-    renderKBList(data.instructions || []);
-  } catch (e) { alert('Reset failed.'); }
 }
 
 /* ── Helpers ───────────────────────────────────────────── */

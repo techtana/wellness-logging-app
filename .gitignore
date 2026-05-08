@@ -77,6 +77,9 @@ dist/
 data/ai_settings.json
 data/transcription_settings.json
 
+# Session data (audio recordings, patient transcripts)
+data/sessions/
+
 # IDE cache
 **/.vscode/
 **/.idea/

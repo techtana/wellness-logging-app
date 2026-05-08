@@ -15,8 +15,9 @@
       <span>ClinicalAI</span>
     </div>
     <div class="mode-switcher">
-      <button class="mode-btn active" id="modeBtnClient" onclick="setMode('client')">Client Session</button>
-      <button class="mode-btn" id="modeBtnTherapist" onclick="setMode('therapist')">Therapist View</button>
+      <button class="mode-btn active" id="modeBtnClient"     onclick="setMode('client')">Client Session</button>
+      <button class="mode-btn"        id="modeBtnTherapist"  onclick="setMode('therapist')">Therapist View</button>
+      <button class="mode-btn"        id="modeBtnManage"     onclick="setMode('manage')">Manage</button>
     </div>
     <div class="mode-bar-right">
       <span class="ai-badge inactive" id="aiBadgeBar" title="AI provider">AI: off</span>
@@ -48,6 +49,7 @@
           <h1>Your session is ready</h1>
           <p>Find a quiet, comfortable place. You'll be guided through a few gentle questions — just speak naturally. There are no right or wrong answers.</p>
           <button class="btn-begin" onclick="startClientSession()">Begin Session</button>
+          <button class="btn-history-link" onclick="openHistory()">View past sessions →</button>
         </div>
       </div>
 
@@ -99,6 +101,27 @@
         </div>
       </div>
 
+      <!-- History screen -->
+      <div id="screenHistory" class="client-screen">
+        <div class="history-view">
+          <div class="history-top">
+            <button class="btn-history-back" onclick="showClientScreen('welcome')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Back
+            </button>
+            <h2>Past Sessions</h2>
+            <div style="width:72px"></div>
+          </div>
+          <div id="historyList" class="history-list">
+            <div style="display:flex;justify-content:center;padding:40px">
+              <div class="mini-spinner" style="width:24px;height:24px;border-width:3px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- Bridge screen -->
       <div id="screenBridge" class="client-screen">
         <div class="bridge-card">
@@ -129,13 +152,15 @@
           </div>
           <div class="t-sidebar-body">
 
-            <!-- Session ID -->
+            <!-- Session selector -->
             <div class="field">
-              <label for="sessionId">Session ID <span class="optional">optional</span></label>
-              <input id="sessionId" type="text" placeholder="e.g. session_001" autocomplete="off">
+              <label for="sessionDropdown">Session recording</label>
+              <select id="sessionDropdown" onchange="selectSessionFromDropdown(this.value)">
+                <option value="">Select a past session…</option>
+              </select>
             </div>
 
-            <!-- Assembled session transcript -->
+            <!-- Session transcript preview -->
             <div class="section-row">
               <span class="section-label">Session Transcript</span>
               <span class="session-turn-count" id="sessionTurnCount">0 turns</span>
@@ -144,13 +169,9 @@
               <p class="muted-hint">Switch to Client view to record a session.</p>
             </div>
 
-            <!-- Prompt Library -->
-            <div class="section-row" style="margin-top:18px">
-              <span class="section-label">Prompt Library</span>
-              <button class="btn-add-prompt" onclick="newPrompt()" title="New prompt">+ Add</button>
+            <div style="margin-top:14px">
+              <a class="manage-link" onclick="setMode('manage')">Manage prompts &amp; KB →</a>
             </div>
-            <div id="promptList" class="prompt-list"></div>
-            <button class="btn-reset-prompts" onclick="resetPrompts()">Reset to defaults</button>
 
           </div>
           <div class="t-sidebar-footer">
@@ -196,13 +217,25 @@
                 <button class="tab"        data-tab="themes"   onclick="switchTab(this)">Themes</button>
                 <button class="tab"        data-tab="dynamics" onclick="switchTab(this)">Dynamics</button>
                 <button class="tab"        data-tab="plan"     onclick="switchTab(this)">Clinical Plan</button>
-                <button class="tab"        data-tab="kb"       onclick="switchTab(this); loadKBInstructions()">Knowledge Base</button>
               </div>
               <span class="ai-enhanced-tag hidden" id="aiEnhancedTag">AI enhanced</span>
+              <button class="btn-export-pdf hidden" id="exportPdfBtn" onclick="downloadReport()">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                PDF Report
+              </button>
             </div>
 
             <!-- Summary tab -->
             <div class="tab-panel active" id="tab-summary">
+              <div class="section-kb-bar">
+                <span class="section-kb-label">Instruction</span>
+                <select class="section-kb-select" id="kb-select-summary"></select>
+                <button class="btn-reanalyze" onclick="reanalyzeSection('clinical_report', 'summary')">↻ Re-analyze</button>
+              </div>
               <div class="card" id="sessionArcCard" style="display:none"></div>
               <div class="stat-row" id="statRow"></div>
               <div class="card" id="toneCard"></div>
@@ -211,79 +244,155 @@
 
             <!-- Emotions tab -->
             <div class="tab-panel" id="tab-emotions">
+              <div class="section-kb-bar">
+                <span class="section-kb-label">Instruction</span>
+                <select class="section-kb-select" id="kb-select-emotions"></select>
+                <button class="btn-reanalyze" onclick="reanalyzeSection('sentiment', 'emotions')">↻ Re-analyze</button>
+              </div>
               <div class="card" id="emotionSummaryCard"></div>
+              <div class="card" id="emotionExplanationCard"></div>
               <div class="card" id="emotionTrajectoryCard"></div>
               <div class="card" id="emotionShiftsCard"></div>
             </div>
 
             <!-- Themes tab -->
             <div class="tab-panel" id="tab-themes">
+              <div class="section-kb-bar">
+                <span class="section-kb-label">Instruction</span>
+                <select class="section-kb-select" id="kb-select-themes"></select>
+                <button class="btn-reanalyze" onclick="reanalyzeSection('themes', 'themes')">↻ Re-analyze</button>
+              </div>
               <div class="card" id="themesCard"></div>
               <div class="card" id="distortionsCard"></div>
+              <div class="card" id="clinicalSignificanceCard"></div>
             </div>
 
             <!-- Dynamics tab -->
             <div class="tab-panel" id="tab-dynamics">
+              <div class="section-kb-bar">
+                <span class="section-kb-label">Instruction</span>
+                <select class="section-kb-select" id="kb-select-dynamics"></select>
+                <button class="btn-reanalyze" onclick="reanalyzeSection('dynamics', 'dynamics')">↻ Re-analyze</button>
+              </div>
               <div class="card" id="allianceCard"></div>
+              <div class="card" id="allianceInterpCard"></div>
               <div class="card" id="speakerCard"></div>
               <div class="card" id="eventsCard"></div>
             </div>
 
             <!-- Clinical plan tab -->
             <div class="tab-panel" id="tab-plan">
+              <div class="section-kb-bar">
+                <span class="section-kb-label">Instruction</span>
+                <select class="section-kb-select" id="kb-select-plan"></select>
+                <button class="btn-reanalyze" onclick="reanalyzeSection('clinical_report', 'plan')">↻ Re-analyze</button>
+              </div>
               <div class="card" id="recommendCard"></div>
               <div class="card" id="interventionsCard"></div>
               <div class="card" id="journalingCard"></div>
-            </div>
-
-            <!-- Knowledge Base tab -->
-            <div class="tab-panel" id="tab-kb">
-              <div class="kb-layout">
-                <div class="kb-list-panel">
-                  <div id="kbList" class="kb-list"></div>
-                  <button class="btn-new-inst" onclick="newInstruction()">+ New instruction</button>
-                  <button class="btn-reset-kb" onclick="resetKB()">Reset to defaults</button>
-                </div>
-                <div class="kb-editor" id="kbEditor">
-                  <div class="kb-editor-placeholder" id="kbEditorPlaceholder">Select an instruction to edit</div>
-                  <div class="hidden" id="kbEditorForm">
-                    <div class="field">
-                      <label>Name</label>
-                      <input id="kbName" type="text" placeholder="e.g. Trauma-focused emotion analysis">
-                    </div>
-                    <div class="field">
-                      <label>Category</label>
-                      <select id="kbCategory">
-                        <option value="sentiment">Emotion Analysis</option>
-                        <option value="themes">Thematic Analysis</option>
-                        <option value="dynamics">Relational Dynamics</option>
-                        <option value="clinical_report">Clinical Report</option>
-                        <option value="custom">Custom</option>
-                      </select>
-                    </div>
-                    <div class="field">
-                      <label>Analysis Instructions <span class="optional">used as AI system prompt</span></label>
-                      <textarea id="kbPrompt" rows="14" placeholder="Write detailed instructions for the AI…"></textarea>
-                    </div>
-                    <div class="kb-form-actions">
-                      <label class="toggle-label">
-                        <input type="checkbox" id="kbEnabled"> Enabled
-                      </label>
-                      <button class="btn-save-inst" onclick="saveInstruction()">Save</button>
-                      <button class="btn-delete-inst" onclick="deleteInstruction()">Delete</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         </main>
       </div>
     </div>
 
+    <!-- ── MANAGE VIEW ─────────────────────────────────────── -->
+    <div id="manageView" class="view hidden">
+      <div class="manage-layout">
+
+        <nav class="manage-nav">
+          <button class="manage-nav-item active" id="manageNavPrompts" onclick="switchManagePanel('prompts')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            Prompt Library
+          </button>
+          <button class="manage-nav-item" id="manageNavKB" onclick="switchManagePanel('kb')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px">
+              <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/>
+              <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+            </svg>
+            Knowledge Base
+          </button>
+        </nav>
+
+        <div class="manage-body">
+
+          <!-- Prompts panel -->
+          <div class="manage-panel active" id="manage-panel-prompts">
+            <div class="manage-panel-head">
+              <h2>Prompt Library</h2>
+              <button class="btn-add-prompt" onclick="newPrompt()">+ New Prompt</button>
+            </div>
+            <div class="manage-panel-content">
+              <div id="promptList" class="prompt-list"></div>
+              <button class="btn-reset-prompts" onclick="resetPrompts()">Reset to defaults</button>
+            </div>
+          </div>
+
+          <!-- Knowledge Base panel -->
+          <div class="manage-panel" id="manage-panel-kb">
+            <div class="kb-layout">
+              <div class="kb-list-panel">
+                <div id="kbList" class="kb-list"></div>
+                <button class="btn-new-inst" onclick="newInstruction()">+ New instruction</button>
+                <button class="btn-reset-kb" onclick="resetKB()">Reset to defaults</button>
+              </div>
+              <div class="kb-editor" id="kbEditor">
+                <div class="kb-editor-placeholder" id="kbEditorPlaceholder">Select an instruction to edit</div>
+                <div class="hidden" id="kbEditorForm">
+                  <div class="field">
+                    <label>Name</label>
+                    <input id="kbName" type="text" placeholder="e.g. Trauma-focused emotion analysis">
+                  </div>
+                  <div class="field">
+                    <label>Category</label>
+                    <select id="kbCategory">
+                      <option value="sentiment">Emotion Analysis</option>
+                      <option value="themes">Thematic Analysis</option>
+                      <option value="dynamics">Relational Dynamics</option>
+                      <option value="clinical_report">Clinical Report</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Analysis Instructions <span class="optional">used as AI system prompt</span></label>
+                    <textarea id="kbPrompt" rows="10" placeholder="Write detailed instructions for the AI…"></textarea>
+                  </div>
+
+                  <!-- Reference Files -->
+                  <div class="kb-files-section">
+                    <div class="kb-files-header">
+                      <span class="section-label">Reference Files <span class="optional" style="text-transform:none;letter-spacing:0;font-weight:400">optional — appended to system prompt</span></span>
+                      <label class="btn-attach-file">
+                        <input type="file" id="kbFileInput" accept=".txt,.pdf,.md" style="display:none" onchange="uploadKBFile(this)">
+                        + Attach file
+                      </label>
+                    </div>
+                    <div id="kbFileList" class="kb-file-list">
+                      <p class="muted-hint" id="kbFilesEmpty">No files attached.</p>
+                    </div>
+                  </div>
+
+                  <div class="kb-form-actions">
+                    <label class="toggle-label">
+                      <input type="checkbox" id="kbEnabled"> Enabled
+                    </label>
+                    <button class="btn-save-inst" onclick="saveInstruction()">Save</button>
+                    <button class="btn-delete-inst" onclick="deleteInstruction()">Delete</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
   </div><!-- end views-container -->
 
-  <!-- Prompt edit modal (therapist) -->
+  <!-- Prompt edit modal -->
   <div class="modal-overlay hidden" id="promptEditModal" onclick="handlePromptModalClick(event)">
     <div class="modal">
       <div class="modal-header">
