@@ -73,6 +73,10 @@ downloads/
 dist/
 *.egg-info/
 
+# Persisted settings with API keys
+data/ai_settings.json
+data/transcription_settings.json
+
 # IDE cache
 **/.vscode/
 **/.idea/

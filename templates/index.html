@@ -3,128 +3,441 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clinical Intelligence System</title>
+  <title>ClinicalAI</title>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
 <body>
-  <div class="layout">
 
-    <!-- Sidebar: Transcript Builder -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <div class="logo">
-          <span class="logo-mark"></span>
-          <div>
-            <div class="logo-name">ClinicalAI</div>
-            <div class="logo-sub">Session Analyzer</div>
+  <!-- Mode bar -->
+  <div class="mode-bar">
+    <div class="mode-bar-brand">
+      <div class="logo-mark-sm"></div>
+      <span>ClinicalAI</span>
+    </div>
+    <div class="mode-switcher">
+      <button class="mode-btn active" id="modeBtnClient" onclick="setMode('client')">Client Session</button>
+      <button class="mode-btn" id="modeBtnTherapist" onclick="setMode('therapist')">Therapist View</button>
+    </div>
+    <div class="mode-bar-right">
+      <span class="ai-badge inactive" id="aiBadgeBar" title="AI provider">AI: off</span>
+      <button class="btn-settings-sm" onclick="openSettings()" title="Settings">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Views container -->
+  <div class="views-container">
+
+    <!-- ── CLIENT VIEW ─────────────────────────────────────── -->
+    <div id="clientView" class="view">
+
+      <!-- Welcome screen -->
+      <div id="screenWelcome" class="client-screen active">
+        <div class="welcome-card">
+          <div class="welcome-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" fill="currentColor" opacity=".12"/>
+              <path d="M24 14a4 4 0 0 0-4 4v8a4 4 0 0 0 8 0v-8a4 4 0 0 0-4-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M32 22v2a8 8 0 0 1-16 0v-2M24 34v4M20 38h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h1>Your session is ready</h1>
+          <p>Find a quiet, comfortable place. You'll be guided through a few gentle questions — just speak naturally. There are no right or wrong answers.</p>
+          <button class="btn-begin" onclick="startClientSession()">Begin Session</button>
+        </div>
+      </div>
+
+      <!-- Session screen -->
+      <div id="screenSession" class="client-screen">
+        <div class="session-top">
+          <div class="session-dots" id="sessionDots"></div>
+        </div>
+
+        <div class="session-body">
+          <div class="prompt-card" id="promptCard">
+            <div class="prompt-cat" id="promptCategory"></div>
+            <div class="prompt-text" id="promptText"></div>
+          </div>
+
+          <div class="record-zone">
+            <button class="btn-record-big" id="clientRecordBtn" onclick="toggleClientRecording()">
+              <div class="record-pulse" id="recordPulse"></div>
+              <svg id="iconMic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+              </svg>
+              <svg id="iconStop" class="hidden" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="6" y="6" width="12" height="12" rx="2"/>
+              </svg>
+            </button>
+            <div class="record-label" id="clientRecordLabel">Tap to speak</div>
+            <div class="client-processing hidden" id="clientProcessing">
+              <div class="mini-spinner"></div>
+              <span>Processing your response…</span>
+            </div>
+            <div class="client-response-ok hidden" id="clientResponseOk">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Response saved
+            </div>
+          </div>
+        </div>
+
+        <div class="session-footer">
+          <button class="btn-session-skip" onclick="skipCurrentPrompt()">Skip</button>
+          <button class="btn-session-next" id="sessionNextBtn" disabled onclick="goNextPrompt()">
+            Next
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Bridge screen -->
+      <div id="screenBridge" class="client-screen">
+        <div class="bridge-card">
+          <div class="bridge-check">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="24" r="20" fill="currentColor" opacity=".15"/>
+              <polyline points="14 24 21 31 34 18" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h2>Thank you for sharing</h2>
+          <div class="bridge-note-box" id="bridgeNoteText">
+            <div class="mini-spinner"></div>
+          </div>
+          <button class="btn-bridge-done" onclick="resetClientSession()">Done</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── THERAPIST VIEW ──────────────────────────────────── -->
+    <div id="therapistView" class="view hidden">
+      <div class="t-layout">
+
+        <!-- Sidebar -->
+        <aside class="t-sidebar">
+          <div class="t-sidebar-header">
+            <div class="t-sidebar-title">Session Setup</div>
+            <span class="ai-badge inactive" id="transcriptionBadge" title="Transcription provider">trans: off</span>
+          </div>
+          <div class="t-sidebar-body">
+
+            <!-- Session ID -->
+            <div class="field">
+              <label for="sessionId">Session ID <span class="optional">optional</span></label>
+              <input id="sessionId" type="text" placeholder="e.g. session_001" autocomplete="off">
+            </div>
+
+            <!-- Assembled session transcript -->
+            <div class="section-row">
+              <span class="section-label">Session Transcript</span>
+              <span class="session-turn-count" id="sessionTurnCount">0 turns</span>
+            </div>
+            <div id="sessionTurnsPreview" class="session-turns-preview">
+              <p class="muted-hint">Switch to Client view to record a session.</p>
+            </div>
+
+            <!-- Prompt Library -->
+            <div class="section-row" style="margin-top:18px">
+              <span class="section-label">Prompt Library</span>
+              <button class="btn-add-prompt" onclick="newPrompt()" title="New prompt">+ Add</button>
+            </div>
+            <div id="promptList" class="prompt-list"></div>
+            <button class="btn-reset-prompts" onclick="resetPrompts()">Reset to defaults</button>
+
+          </div>
+          <div class="t-sidebar-footer">
+            <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
+              <span id="analyzeBtnText">Analyze Session</span>
+              <svg id="analyzeSpinner" class="spinner hidden" viewBox="0 0 24 24" fill="none">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button class="btn-clear" onclick="clearAll()">Clear</button>
+          </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="t-main">
+
+          <!-- Empty state -->
+          <div class="splash" id="splash">
+            <div class="splash-icon">
+              <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="8" y="16" width="48" height="36" rx="4" stroke="currentColor" stroke-width="2.5"/>
+                <path d="M20 28h24M20 36h16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+                <circle cx="48" cy="12" r="8" fill="currentColor" opacity="0.15"/>
+                <path d="M45 12h6M48 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <h2 class="splash-title">Ready to analyze</h2>
+            <p class="splash-desc">Switch to <strong>Client view</strong> to run a session, then click <strong>Analyze Session</strong> to review the clinical insights.</p>
+          </div>
+
+          <!-- Error state -->
+          <div class="error-banner hidden" id="errorBanner">
+            <span id="errorMsg"></span>
+            <button onclick="dismissError()">&#x2715;</button>
+          </div>
+
+          <!-- Results -->
+          <div class="results hidden" id="results">
+            <div class="results-header">
+              <div class="tabs">
+                <button class="tab active" data-tab="summary"  onclick="switchTab(this)">Summary</button>
+                <button class="tab"        data-tab="emotions" onclick="switchTab(this)">Emotions</button>
+                <button class="tab"        data-tab="themes"   onclick="switchTab(this)">Themes</button>
+                <button class="tab"        data-tab="dynamics" onclick="switchTab(this)">Dynamics</button>
+                <button class="tab"        data-tab="plan"     onclick="switchTab(this)">Clinical Plan</button>
+                <button class="tab"        data-tab="kb"       onclick="switchTab(this); loadKBInstructions()">Knowledge Base</button>
+              </div>
+              <span class="ai-enhanced-tag hidden" id="aiEnhancedTag">AI enhanced</span>
+            </div>
+
+            <!-- Summary tab -->
+            <div class="tab-panel active" id="tab-summary">
+              <div class="card" id="sessionArcCard" style="display:none"></div>
+              <div class="stat-row" id="statRow"></div>
+              <div class="card" id="toneCard"></div>
+              <div class="card" id="takeawaysCard"></div>
+            </div>
+
+            <!-- Emotions tab -->
+            <div class="tab-panel" id="tab-emotions">
+              <div class="card" id="emotionSummaryCard"></div>
+              <div class="card" id="emotionTrajectoryCard"></div>
+              <div class="card" id="emotionShiftsCard"></div>
+            </div>
+
+            <!-- Themes tab -->
+            <div class="tab-panel" id="tab-themes">
+              <div class="card" id="themesCard"></div>
+              <div class="card" id="distortionsCard"></div>
+            </div>
+
+            <!-- Dynamics tab -->
+            <div class="tab-panel" id="tab-dynamics">
+              <div class="card" id="allianceCard"></div>
+              <div class="card" id="speakerCard"></div>
+              <div class="card" id="eventsCard"></div>
+            </div>
+
+            <!-- Clinical plan tab -->
+            <div class="tab-panel" id="tab-plan">
+              <div class="card" id="recommendCard"></div>
+              <div class="card" id="interventionsCard"></div>
+              <div class="card" id="journalingCard"></div>
+            </div>
+
+            <!-- Knowledge Base tab -->
+            <div class="tab-panel" id="tab-kb">
+              <div class="kb-layout">
+                <div class="kb-list-panel">
+                  <div id="kbList" class="kb-list"></div>
+                  <button class="btn-new-inst" onclick="newInstruction()">+ New instruction</button>
+                  <button class="btn-reset-kb" onclick="resetKB()">Reset to defaults</button>
+                </div>
+                <div class="kb-editor" id="kbEditor">
+                  <div class="kb-editor-placeholder" id="kbEditorPlaceholder">Select an instruction to edit</div>
+                  <div class="hidden" id="kbEditorForm">
+                    <div class="field">
+                      <label>Name</label>
+                      <input id="kbName" type="text" placeholder="e.g. Trauma-focused emotion analysis">
+                    </div>
+                    <div class="field">
+                      <label>Category</label>
+                      <select id="kbCategory">
+                        <option value="sentiment">Emotion Analysis</option>
+                        <option value="themes">Thematic Analysis</option>
+                        <option value="dynamics">Relational Dynamics</option>
+                        <option value="clinical_report">Clinical Report</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    <div class="field">
+                      <label>Analysis Instructions <span class="optional">used as AI system prompt</span></label>
+                      <textarea id="kbPrompt" rows="14" placeholder="Write detailed instructions for the AI…"></textarea>
+                    </div>
+                    <div class="kb-form-actions">
+                      <label class="toggle-label">
+                        <input type="checkbox" id="kbEnabled"> Enabled
+                      </label>
+                      <button class="btn-save-inst" onclick="saveInstruction()">Save</button>
+                      <button class="btn-delete-inst" onclick="deleteInstruction()">Delete</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+  </div><!-- end views-container -->
+
+  <!-- Prompt edit modal (therapist) -->
+  <div class="modal-overlay hidden" id="promptEditModal" onclick="handlePromptModalClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="promptEditTitle">New Prompt</h2>
+        <button class="modal-close" onclick="closePromptEdit()">&#x2715;</button>
+      </div>
+      <div class="modal-body">
+        <div class="settings-section">
+          <div class="field">
+            <label>Category</label>
+            <select id="peCategory">
+              <option value="opening">Opening</option>
+              <option value="exploration">Exploration</option>
+              <option value="coping">Coping</option>
+              <option value="reflection">Reflection</option>
+              <option value="closing">Closing</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Clinical Question <span class="optional">full clinical phrasing</span></label>
+            <textarea id="peClinical" rows="3" placeholder="How does the client present their core concern clinically?"></textarea>
+          </div>
+          <div class="field">
+            <label>Client-facing text <span class="optional">shown to client during session</span></label>
+            <textarea id="peRephrased" rows="3" placeholder="Warm, natural phrasing…"></textarea>
+            <button class="btn-rephrase" id="rephraseBtn" onclick="rephraseCurrentPrompt()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+              AI rephrase
+            </button>
+          </div>
+          <div class="field">
+            <label>Display order</label>
+            <input type="number" id="peOrder" min="1" placeholder="1">
           </div>
         </div>
       </div>
+      <div class="modal-footer">
+        <label class="toggle-label" style="margin-right:auto">
+          <input type="checkbox" id="peEnabled" checked> Enabled
+        </label>
+        <button class="btn-cancel-settings" id="peDeleteBtn" onclick="deleteCurrentPrompt()" style="color:var(--danger);border-color:var(--danger);display:none">Delete</button>
+        <button class="btn-cancel-settings" onclick="closePromptEdit()">Cancel</button>
+        <button class="btn-save-settings" onclick="savePrompt()">Save Prompt</button>
+      </div>
+    </div>
+  </div>
 
-      <div class="sidebar-body">
-        <div class="field">
-          <label for="sessionId">Session ID <span class="optional">optional</span></label>
-          <input id="sessionId" type="text" placeholder="e.g. session_001" autocomplete="off">
-        </div>
+  <!-- Settings Modal -->
+  <div class="modal-overlay hidden" id="settingsModal" onclick="handleModalOverlayClick(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Settings</h2>
+        <button class="modal-close" onclick="closeSettings()">&#x2715;</button>
+      </div>
+      <div class="modal-body">
 
-        <div class="turns-header">
-          <span class="turns-label">Transcript</span>
-          <div class="turns-add">
-            <button class="chip therapist" onclick="addTurn('therapist')">+ Therapist</button>
-            <button class="chip client" onclick="addTurn('client')">+ Client</button>
+        <div class="settings-section">
+          <h3>AI Analysis Provider</h3>
+          <div class="field">
+            <label>Provider</label>
+            <select id="aiProvider" onchange="updateAIProviderUI()">
+              <option value="none">None — keyword-based analysis</option>
+              <option value="claude">Claude (Anthropic)</option>
+              <option value="openai">OpenAI</option>
+              <option value="ollama">Ollama (local)</option>
+            </select>
+          </div>
+          <div id="claudeSettings" class="provider-settings hidden">
+            <div class="field">
+              <label>API Key</label>
+              <input type="password" id="claudeApiKey" placeholder="sk-ant-…" autocomplete="off">
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <select id="claudeModel">
+                <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (recommended)</option>
+                <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast)</option>
+                <option value="claude-opus-4-7">Claude Opus 4.7 (most capable)</option>
+              </select>
+            </div>
+          </div>
+          <div id="openaiSettings" class="provider-settings hidden">
+            <div class="field">
+              <label>API Key</label>
+              <input type="password" id="openaiApiKey" placeholder="sk-…" autocomplete="off">
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <input type="text" id="openaiModel" placeholder="gpt-4o">
+            </div>
+          </div>
+          <div id="ollamaSettings" class="provider-settings hidden">
+            <div class="field">
+              <label>Host</label>
+              <input type="text" id="ollamaHost" placeholder="http://localhost:11434">
+            </div>
+            <div class="field">
+              <label>Model</label>
+              <input type="text" id="ollamaModel" placeholder="llama3.2">
+            </div>
           </div>
         </div>
 
-        <div id="turns" class="turns"></div>
+        <hr class="settings-divider">
 
-        <div class="empty-turns" id="emptyTurns">
-          <p>Add turns above to build the transcript.</p>
-        </div>
-      </div>
-
-      <div class="sidebar-footer">
-        <button class="btn-analyze" id="analyzeBtn" onclick="analyze()">
-          <span id="analyzeBtnText">Analyze Session</span>
-          <svg id="analyzeSpinner" class="spinner hidden" viewBox="0 0 24 24" fill="none">
-            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" stroke-dasharray="60" stroke-linecap="round"/>
-          </svg>
-        </button>
-        <button class="btn-clear" onclick="clearAll()">Clear</button>
-      </div>
-    </aside>
-
-    <!-- Main: Results -->
-    <main class="main">
-
-      <!-- Empty state -->
-      <div class="splash" id="splash">
-        <div class="splash-icon">
-          <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="8" y="16" width="48" height="36" rx="4" stroke="currentColor" stroke-width="2.5"/>
-            <path d="M20 28h24M20 36h16" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            <circle cx="48" cy="12" r="8" fill="currentColor" opacity="0.15"/>
-            <path d="M45 12h6M48 9v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </div>
-        <h2 class="splash-title">Ready to analyze</h2>
-        <p class="splash-desc">Build a session transcript using the panel on the left, then click <strong>Analyze Session</strong> to generate clinical insights.</p>
-        <button class="btn-demo" onclick="loadDemo()">Load demo transcript</button>
-      </div>
-
-      <!-- Error state -->
-      <div class="error-banner hidden" id="errorBanner">
-        <span id="errorMsg"></span>
-        <button onclick="dismissError()">&#x2715;</button>
-      </div>
-
-      <!-- Results -->
-      <div class="results hidden" id="results">
-
-        <!-- Tab bar -->
-        <div class="tabs">
-          <button class="tab active" data-tab="summary"  onclick="switchTab(this)">Summary</button>
-          <button class="tab"        data-tab="emotions" onclick="switchTab(this)">Emotions</button>
-          <button class="tab"        data-tab="themes"   onclick="switchTab(this)">Themes</button>
-          <button class="tab"        data-tab="dynamics" onclick="switchTab(this)">Dynamics</button>
-          <button class="tab"        data-tab="plan"     onclick="switchTab(this)">Clinical Plan</button>
-        </div>
-
-        <!-- Summary tab -->
-        <div class="tab-panel active" id="tab-summary">
-          <div class="stat-row" id="statRow"></div>
-          <div class="card" id="toneCard"></div>
-          <div class="card" id="takeawaysCard"></div>
-        </div>
-
-        <!-- Emotions tab -->
-        <div class="tab-panel" id="tab-emotions">
-          <div class="card" id="emotionSummaryCard"></div>
-          <div class="card" id="emotionTrajectoryCard"></div>
-          <div class="card" id="emotionShiftsCard"></div>
-        </div>
-
-        <!-- Themes tab -->
-        <div class="tab-panel" id="tab-themes">
-          <div class="card" id="themesCard"></div>
-          <div class="card" id="distortionsCard"></div>
-        </div>
-
-        <!-- Dynamics tab -->
-        <div class="tab-panel" id="tab-dynamics">
-          <div class="card" id="allianceCard"></div>
-          <div class="card" id="speakerCard"></div>
-          <div class="card" id="eventsCard"></div>
-        </div>
-
-        <!-- Clinical plan tab -->
-        <div class="tab-panel" id="tab-plan">
-          <div class="card" id="recommendCard"></div>
-          <div class="card" id="interventionsCard"></div>
-          <div class="card" id="journalingCard"></div>
+        <div class="settings-section">
+          <h3>Transcription Provider</h3>
+          <div class="field">
+            <label>Provider</label>
+            <select id="transcriptionProvider" onchange="updateTranscriptionUI()">
+              <option value="none">None</option>
+              <option value="whisper_local">Whisper Local (faster-whisper)</option>
+              <option value="openai">OpenAI Whisper API</option>
+            </select>
+          </div>
+          <div id="whisperLocalSettings" class="provider-settings hidden">
+            <div class="field">
+              <label>Model size</label>
+              <select id="whisperModel">
+                <option value="large-v3-turbo">large-v3-turbo (recommended)</option>
+                <option value="large-v3">large-v3</option>
+                <option value="medium">medium</option>
+                <option value="small">small</option>
+                <option value="base">base (fastest)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Device</label>
+              <select id="whisperDevice">
+                <option value="auto">auto</option>
+                <option value="cuda">cuda (NVIDIA GPU)</option>
+                <option value="cpu">cpu</option>
+              </select>
+            </div>
+            <span class="field-hint">First transcription downloads model weights (~1.6 GB for large-v3-turbo).</span>
+          </div>
+          <div id="openaiTransSettings" class="provider-settings hidden">
+            <div class="field">
+              <label>API Key</label>
+              <input type="password" id="openaiTransKey" placeholder="sk-… (can reuse AI key above)" autocomplete="off">
+              <span class="field-hint">Leave blank to reuse the OpenAI API key from AI Provider above.</span>
+            </div>
+          </div>
         </div>
 
       </div>
-    </main>
+      <div class="modal-footer">
+        <button class="btn-cancel-settings" onclick="closeSettings()">Cancel</button>
+        <button class="btn-save-settings" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </div>
   </div>
 
   <script src="/static/app.js"></script>

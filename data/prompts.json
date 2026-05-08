@@ -1,0 +1,66 @@
+[
+  {
+    "id": "opening_1",
+    "category": "opening",
+    "clinical_text": "How have you been feeling overall since our last session?",
+    "rephrased_text": "How have you been doing lately?",
+    "enabled": true,
+    "order": 1
+  },
+  {
+    "id": "opening_2",
+    "category": "opening",
+    "clinical_text": "What is the primary concern or theme you would like to focus on today?",
+    "rephrased_text": "What's been weighing on you most this week?",
+    "enabled": true,
+    "order": 2
+  },
+  {
+    "id": "exploration_1",
+    "category": "exploration",
+    "clinical_text": "Can you describe a specific recent situation that triggered these difficult feelings?",
+    "rephrased_text": "Can you walk me through a moment recently that felt really hard?",
+    "enabled": true,
+    "order": 3
+  },
+  {
+    "id": "exploration_2",
+    "category": "exploration",
+    "clinical_text": "What thoughts and beliefs were present for you during that experience?",
+    "rephrased_text": "What was going through your mind in that moment?",
+    "enabled": true,
+    "order": 4
+  },
+  {
+    "id": "coping_1",
+    "category": "coping",
+    "clinical_text": "What coping strategies have you attempted, and how effective were they?",
+    "rephrased_text": "What have you tried to help yourself through those hard moments? Did anything actually work?",
+    "enabled": true,
+    "order": 5
+  },
+  {
+    "id": "reflection_1",
+    "category": "reflection",
+    "clinical_text": "Reflecting on the past week, what changes \u2014 however small \u2014 have you noticed in yourself?",
+    "rephrased_text": "Looking back at this week \u2014 is there anything that feels even a little different?",
+    "enabled": true,
+    "order": 6
+  },
+  {
+    "id": "reflection_2",
+    "category": "reflection",
+    "clinical_text": "What personal strengths or resources have you drawn upon recently?",
+    "rephrased_text": "Is there anything you did this week that you feel a little proud of, even something small?",
+    "enabled": true,
+    "order": 7
+  },
+  {
+    "id": "closing_1",
+    "category": "closing",
+    "clinical_text": "What is one intention you would like to carry into the week ahead?",
+    "rephrased_text": "Is there one small thing you'd like to try or focus on before next time?",
+    "enabled": true,
+    "order": 8
+  }
+]
