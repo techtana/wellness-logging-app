@@ -599,6 +599,10 @@ async function reanalyzeSection(section, tabName) {
     }
 
     const result = data.result || {};
+    if (Object.keys(result).length === 0) {
+      showError('Re-analysis returned no data. Check that your AI provider is running and configured correctly.');
+      return;
+    }
 
     // Patch lastAnalysisData and re-render the affected tab(s)
     if (section === 'sentiment') {
@@ -986,11 +990,17 @@ function switchManagePanel(panel) {
   document.getElementById(`manageNav${panel.charAt(0).toUpperCase() + panel.slice(1)}`).classList.add('active');
   document.getElementById(`manage-panel-${panel}`).classList.add('active');
   if (panel === 'kb') {
-    ensureKBLoaded();
+    if (kbLoaded && window._kbInstructions) {
+      renderKBList(window._kbInstructions);
+    } else {
+      ensureKBLoaded();
+    }
   }
 }
 
 /* ── Prompt library ────────────────────────────────────── */
+let _dragSrcId = null;
+
 function renderPromptList() {
   const list = document.getElementById('promptList');
   if (!list) return;
@@ -1000,7 +1010,13 @@ function renderPromptList() {
   }
   const sorted = [...promptsData].sort((a, b) => (a.order || 999) - (b.order || 999));
   list.innerHTML = sorted.map(p => `
-    <div class="prompt-item" onclick="editPrompt('${p.id}')">
+    <div class="prompt-item" draggable="true" data-id="${p.id}"
+         ondragstart="_promptDragStart(event)"
+         ondragover="_promptDragOver(event)"
+         ondrop="_promptDrop(event)"
+         ondragend="_promptDragEnd(event)"
+         onclick="editPrompt('${p.id}')">
+      <div class="prompt-drag-handle" title="Drag to reorder">⠿</div>
       <div class="prompt-item-dot ${p.enabled ? 'enabled' : 'disabled'}"></div>
       <div class="prompt-item-info">
         <div class="prompt-item-text">${escHtml(p.rephrased_text.length > 55 ? p.rephrased_text.slice(0, 55) + '…' : p.rephrased_text)}</div>
@@ -1015,13 +1031,63 @@ function renderPromptList() {
     </div>`).join('');
 }
 
+function _promptDragStart(e) {
+  _dragSrcId = e.currentTarget.dataset.id;
+  e.currentTarget.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+}
+
+function _promptDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  document.querySelectorAll('.prompt-item').forEach(el => el.classList.remove('drag-over'));
+  if (e.currentTarget.dataset.id !== _dragSrcId) {
+    e.currentTarget.classList.add('drag-over');
+  }
+}
+
+function _promptDragEnd(e) {
+  document.querySelectorAll('.prompt-item').forEach(el => {
+    el.classList.remove('dragging', 'drag-over');
+  });
+  _dragSrcId = null;
+}
+
+async function _promptDrop(e) {
+  e.preventDefault();
+  const targetId = e.currentTarget.dataset.id;
+  if (!_dragSrcId || _dragSrcId === targetId) return;
+
+  const sorted = [...promptsData].sort((a, b) => (a.order || 999) - (b.order || 999));
+  const srcIdx = sorted.findIndex(p => p.id === _dragSrcId);
+  const tgtIdx = sorted.findIndex(p => p.id === targetId);
+  if (srcIdx === -1 || tgtIdx === -1) return;
+
+  // Reorder array
+  const [moved] = sorted.splice(srcIdx, 1);
+  sorted.splice(tgtIdx, 0, moved);
+
+  // Assign new order values and update promptsData
+  const updates = sorted.map((p, i) => ({ ...p, order: i + 1 }));
+  promptsData = updates;
+  renderPromptList();
+
+  // Persist order changes to server
+  await Promise.all(updates.map(p =>
+    fetch(`/api/v1/prompts/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ order: p.order }),
+    }).catch(() => {})
+  ));
+}
+
 function newPrompt() {
   editingPromptId = null;
   document.getElementById('promptEditTitle').textContent = 'New Prompt';
   document.getElementById('peCategory').value = 'opening';
   document.getElementById('peClinical').value = '';
   document.getElementById('peRephrased').value = '';
-  document.getElementById('peOrder').value = (promptsData.length + 1).toString();
   document.getElementById('peEnabled').checked = true;
   document.getElementById('peDeleteBtn').style.display = 'none';
   document.getElementById('promptEditModal').classList.remove('hidden');
@@ -1035,7 +1101,6 @@ function editPrompt(id) {
   document.getElementById('peCategory').value = p.category;
   document.getElementById('peClinical').value = p.clinical_text;
   document.getElementById('peRephrased').value = p.rephrased_text;
-  document.getElementById('peOrder').value = (p.order || 1).toString();
   document.getElementById('peEnabled').checked = p.enabled !== false;
   document.getElementById('peDeleteBtn').style.display = '';
   document.getElementById('promptEditModal').classList.remove('hidden');
@@ -1060,7 +1125,6 @@ async function savePrompt() {
     category: document.getElementById('peCategory').value,
     clinical_text,
     rephrased_text,
-    order: parseInt(document.getElementById('peOrder').value) || 1,
     enabled: document.getElementById('peEnabled').checked,
   };
 
@@ -1367,7 +1431,15 @@ function applyAISettings(data) {
 
   const ollama = data.ollama || {};
   setEl('ollamaHost', ollama.host || 'http://localhost:11434');
-  setEl('ollamaModel', ollama.model || 'llama3.2');
+  const ollamaModelEl = document.getElementById('ollamaModel');
+  if (ollamaModelEl) {
+    ollamaModelEl.dataset.savedValue = ollama.model || 'llama3.2';
+    // Set as single option so value is accessible before dropdown loads
+    if (!ollamaModelEl.options.length || ollamaModelEl.options[0].value !== (ollama.model || 'llama3.2')) {
+      ollamaModelEl.innerHTML = `<option value="${escHtml(ollama.model || 'llama3.2')}">${escHtml(ollama.model || 'llama3.2')}</option>`;
+      ollamaModelEl.value = ollama.model || 'llama3.2';
+    }
+  }
 
   updateAIProviderUI();
 
@@ -1417,6 +1489,28 @@ function updateAIProviderUI() {
   document.getElementById('claudeSettings').classList.toggle('hidden', prov !== 'claude');
   document.getElementById('openaiSettings').classList.toggle('hidden', prov !== 'openai');
   document.getElementById('ollamaSettings').classList.toggle('hidden', prov !== 'ollama');
+  if (prov === 'ollama') loadOllamaModels();
+}
+
+async function loadOllamaModels() {
+  const host = document.getElementById('ollamaHost').value || 'http://localhost:11434';
+  const sel = document.getElementById('ollamaModel');
+  if (!sel) return;
+  const current = sel.value || sel.dataset.savedValue || '';
+  sel.innerHTML = '<option value="">Loading…</option>';
+  try {
+    const res = await fetch(`/api/v1/ollama/models?host=${encodeURIComponent(host)}`);
+    const data = await res.json();
+    const models = data.models || [];
+    if (!models.length) {
+      sel.innerHTML = '<option value="">No models found</option>';
+      return;
+    }
+    sel.innerHTML = models.map(m => `<option value="${escHtml(m)}">${escHtml(m)}</option>`).join('');
+    if (current && models.includes(current)) sel.value = current;
+  } catch (e) {
+    sel.innerHTML = `<option value="${escHtml(current)}">${escHtml(current) || 'llama3.2'}</option>`;
+  }
 }
 
 function updateTranscriptionUI() {

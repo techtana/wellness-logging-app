@@ -259,6 +259,20 @@ def create_app():
         refresh_analyzer()
         return jsonify(ai_settings.get_safe())
 
+    # ── Ollama model list ────────────────────────────────────
+    @app.route('/api/v1/ollama/models', methods=['GET'])
+    def list_ollama_models():
+        import urllib.request
+        host = request.args.get('host', 'http://localhost:11434').rstrip('/')
+        try:
+            req = urllib.request.Request(f'{host}/api/tags', headers={'Accept': 'application/json'})
+            with urllib.request.urlopen(req, timeout=4) as resp:
+                data = json.loads(resp.read())
+            models = [m['name'] for m in data.get('models', [])]
+            return jsonify({'models': models})
+        except Exception as e:
+            return jsonify({'models': [], 'error': str(e)}), 200
+
     # ── Transcription Settings ──────────────────────────────
     @app.route('/api/v1/settings/transcription', methods=['GET'])
     def get_transcription_settings():

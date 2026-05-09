@@ -426,10 +426,6 @@
               AI rephrase
             </button>
           </div>
-          <div class="field">
-            <label>Display order</label>
-            <input type="number" id="peOrder" min="1" placeholder="1">
-          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -494,7 +490,10 @@
             </div>
             <div class="field">
               <label>Model</label>
-              <input type="text" id="ollamaModel" placeholder="llama3.2">
+              <select id="ollamaModel">
+                <option value="llama3.2">llama3.2</option>
+              </select>
+              <button type="button" class="btn-refresh-models" onclick="loadOllamaModels()" title="Refresh model list">↻ Refresh</button>
             </div>
           </div>
         </div>
